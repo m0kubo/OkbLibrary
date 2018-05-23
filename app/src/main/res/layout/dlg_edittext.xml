@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="5dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    >
+    <EditText
+        android:id="@+id/et_dlg"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="（入力してください）"
+        android:maxLength="64"
+        android:maxLines="1"
+        android:inputType="text"
+        />
+</FrameLayout>

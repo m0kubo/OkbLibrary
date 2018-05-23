@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Common Library</string>
+
+    <string-array name="choice_list">
+        <item>リンゴ</item>
+        <item>みかん</item>
+        <item>バナナ</item>
+        <item>いちご</item>
+    </string-array>
+</resources>
