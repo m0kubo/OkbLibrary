@@ -16,18 +16,24 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+
 /**
  * Created by okubo on 2018/03/05.
- * AlertDialogを利用するための ユーティリティクラス
+ * AlertDialogを利用するための クラス
  */
 
 public class DialogUi {
 
     //////////////////////////
     //
-    // interface用 public 定数
+    // public 定数
     //
 
+    // ダイアログのタイプ
+    public static final int STYLE_ALERT_DIALOG = -1;           // 通常ダイアログスタイル
+    public static final int STYLE_PROGRESS_DIALOG = 0;         // ProgressDialog風 スタイル
+
+    // interface用 public 定数
     public static final int EVENT_BUTTON_POSITIVE = DialogInterface.BUTTON_POSITIVE;
     public static final int EVENT_BUTTON_NEGATIVE = DialogInterface.BUTTON_NEGATIVE;
     public static final int EVENT_BUTTON_NEUTRAL = DialogInterface.BUTTON_NEUTRAL;
@@ -56,10 +62,6 @@ public class DialogUi {
     private static final String KEY_CHOICE_SELECTED_ITEMS = "choice.SELECTED_ITEMS";
     private static final String KEY_PROGRESS_STYLE = "progress.STYLE";
 
-    // ダイアログのタイプ
-    private static final int STYLE_ALERT_DIALOG = -1;           // 通常ダイアログスタイル
-    private static final int STYLE_PROGRESS_DIALOG = 0;         // ProgressDialog風 スタイル
-
     // ListViewの選択方法
     private static final int LIST_TYPE_NO_CHOICE = 0;           // ListView (checkBoxなし)
     private static final int LIST_TYPE_SINGLE_CHOICE = 1;       // ListView (単一選択)
@@ -83,350 +85,19 @@ public class DialogUi {
     public interface DialogEventListener {
         /**
          * AlertDialogの イベントを通知する
-         * Listenerに渡される objResponseは Dialogの形態によって内容が異なる
+         *
+         * whichは DialogInterface.OnClickListenerなどで返されるwhichの値
+         * (POSITIVEボタン押下：-1、NEGATIVEボタン押下：-2、NEUTRALボタン押下：-3、リスト項目番号：0以上の整数)に
+         * 加え、DialogFragment created：-100、DialogFragment shown：-101 が返される
+         *
+         * Listenerに渡される viewは Dialogの形態によって内容が異なる
          * - メッセージと ダイアログ標準ボタンのみの場合、常にnull
-         * - 選択リスト(Single Choice)が指定されている場合、選択リストの ListViewオブジェクト
-         * - カスタムViewが 設定されている場合、その Viewオブジェクト
+         * - 選択リストが設定されている場合、選択リストのListViewオブジェクト
+         * - カスタムViewが設定されている場合、そのViewオブジェクト
          */
         void onDialogEvent(int requestCode, AlertDialog dialog, int which, View view);
     }
 
-
-    ////////////////////////////////////
-    //
-    // ボタンと メッセージのみのダイアログ
-
-    /**
-     * OK/Cancel/Neutralの ボタンを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param message メッセージ文字列 (表示しない場合は nullを指定する)
-     * @param labelOk OKボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param labelCancel Cancelボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param labelNeutral Neutralボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showButtonsDialog(Activity activity, String title, String message, String labelOk, String labelCancel, String labelNeutral, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton(labelOk)
-                .setNegativeButton(labelCancel)
-                .setNeutral(labelNeutral);
-        return builder.show();
-    }
-
-    /**
-     * OKボタンのみの メッセージダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param titleId ダイアログのタイトルのリソースID (表示しない場合は 0を指定する)
-     * @param messageId メッセージのリソースID (表示しない場合は 0を指定する)
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showOkDialog(Activity activity, int titleId, int messageId) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setTitle(titleId)
-                .setMessage(messageId)
-                .setPositiveButton(ID_STRING_DEFAULT_OK);
-        return builder.show();
-    }
-
-    /**
-     * OKボタンのみの メッセージダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param message メッセージ文字列 (表示しない場合は nullを指定する)
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showOkDialog(Activity activity, String title, String message) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton(ID_STRING_DEFAULT_OK);
-        return builder.show();
-    }
-
-    /**
-     * OKボタンのみの メッセージダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param message メッセージ文字列 (表示しない場合は nullを指定する)
-     * @param labelOk OKボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showOkDialog(Activity activity, String title, String message, String labelOk, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton(labelOk);
-        return builder.show();
-    }
-
-    /**
-     * OK/Cancelの ボタンを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param titleId ダイアログのタイトルのリソースID (表示しない場合は 0を指定する)
-     * @param messageId メッセージのリソースID (表示しない場合は 0を指定する)
-     * @param okTextId OKボタンのラベルのリソースID (ボタンを表示しない場合は 0を指定する)
-     * @param cancelTextId キャンセルボタンのラベルのリソースID (ボタンを表示しない場合は 0を指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showOkCancelDialog(Activity activity, int titleId, int messageId, int okTextId, int cancelTextId, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(titleId)
-                .setMessage(messageId)
-                .setPositiveButton(okTextId)
-                .setNegativeButton(cancelTextId);
-        return builder.show();
-    }
-
-    /**
-     * OK/Cancelの ボタンを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param message メッセージ文字列 (表示しない場合は nullを指定する)
-     * @param labelOk OKボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param labelCancel Cancelボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showOkCancelDialog(Activity activity, String title, String message, String labelOk, String labelCancel, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton(labelOk)
-                .setNegativeButton(labelCancel);
-        return builder.show();
-    }
-
-    /**
-     *
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param message メッセージ文字列 (表示しない場合は nullを指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showOkCancelDialog(Activity activity, String title, String message, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton(ID_STRING_DEFAULT_OK)
-                .setNegativeButton(ID_STRING_DEFAULT_CANCEL);
-        return builder.show();
-    }
-
-
-    ////////////////////////////////////
-    //
-    // ボタンと Item選択のダイアログ
-    //
-
-    /**
-     * Itemリストを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param list 選択(単一選択)リスト
-     * @param selected 初期選択番号 (未選択の場合は-1を設定する)
-     * @param labelOk OKボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param labelCancel Cancelボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showItemSelectDialog(final Activity activity, String title, String[] list, int selected, String labelOk, String labelCancel, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(title)
-                .setSingleChoiceItems(list, selected)
-                .setPositiveButton(labelOk)
-                .setNegativeButton(labelCancel);
-        return builder.show();
-    }
-
-
-    /**
-     * CheckBoxなしItemリストを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param list 選択(単一選択)リスト
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showItemListDialog(final Activity activity, String title, String[] list, String labelCancel, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(title)
-                .setItems(list)
-                .setNegativeButton(labelCancel);
-        return builder.show();
-    }
-
-    /**
-     * CheckBoxなしItemリストを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param titleId ダイアログのタイトルのリソースID (表示しない場合は 0を指定する)
-     * @param list 選択(単一選択)リスト
-     * @param cancelTextId キャンセルボタンのラベルのリソースID (ボタンを表示しない場合は 0を指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showItemListDialog(final Activity activity, int titleId, String[] list, int cancelTextId, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(titleId)
-                .setItems(list)
-                .setNegativeButton(cancelTextId);
-        return builder.show();
-    }
-
-
-    /**
-     * CheckBox付きItem選択(単一選択)リストを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param titleId ダイアログのタイトルのリソースID (表示しない場合は 0を指定する)
-     * @param list 選択(単一選択)リスト
-     * @param selected 初期選択番号 (未選択の場合は-1を設定する)
-     * @param okTextId OKボタンのラベルのリソースID (ボタンを表示しない場合は 0を指定する)
-     * @param cancelTextId キャンセルボタンのラベルのリソースID (ボタンを表示しない場合は 0を指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showItemSelectDialog(final Activity activity, int titleId, String[] list, int selected, int okTextId, int cancelTextId, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(titleId)
-                .setSingleChoiceItems(list, selected)
-                .setPositiveButton(okTextId)
-                .setNegativeButton(cancelTextId);
-        return builder.show();
-    }
-
-    /**
-     * CheckBox付きItem選択(単一選択)リストを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param titleId ダイアログのタイトルのリソースID (表示しない場合は 0を指定する)
-     * @param list 選択(単一選択)リスト
-     * @param selected 初期選択番号 (未選択の場合は-1を設定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showItemSelectDialog(final Activity activity, int titleId, String[] list, int selected, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setTitle(titleId)
-                .setSingleChoiceItems(list, selected)
-                .setPositiveButton(ID_STRING_DEFAULT_OK)
-                .setNegativeButton(ID_STRING_DEFAULT_CANCEL);
-        return builder.show();
-    }
-
-
-    ////////////////////////////////////
-    //
-    // カスタムレイアウトのダイアログ
-    //
-
-    /**
-     * カスタムレイアウトで Viewを指定したダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param message メッセージ文字列 (表示しない場合は nullを指定する)
-     * @param layoutId カスタムレイアウトのリソースID
-     * @param okText OKボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param cancelText Cancelボタンのラベル文字列 (ボタンを表示しない場合は nullを指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showCustomDialog(final Activity activity, String title, String message, int layoutId, String okText, String cancelText, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setView(layoutId)
-                .setTitle(title)
-                .setMessage(message)
-                .setPositiveButton(okText)
-                .setNegativeButton(cancelText);
-        return builder.show();
-    }
-
-    /**
-     * カスタムレイアウトで Viewを指定したダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param titleId ダイアログのタイトルのリソースID (表示しない場合は 0を指定する)
-     * @param messageId メッセージのリソースID (表示しない場合は 0を指定する)
-     * @param layoutId カスタムレイアウトのリソースID
-     * @param okTextId OKボタンのラベルのリソースID (ボタンを表示しない場合は 0を指定する)
-     * @param cancelTextId キャンセルボタンのラベルのリソースID (ボタンを表示しない場合は 0を指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showCustomDialog(final Activity activity, int titleId, int messageId, int layoutId, int okTextId, int cancelTextId, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity)
-                .setRequestCode(requestCode)
-                .setView(layoutId)
-                .setTitle(titleId)
-                .setMessage(messageId)
-                .setPositiveButton(okTextId)
-                .setNegativeButton(cancelTextId);
-        return builder.show();
-    }
-
-
-    ////////////////////////////////////
-    //
-    // プログレスダイアログ
-    //
-
-    /**
-     * OK/Cancel/Neutralの ボタンを持つダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param message メッセージ文字列 (表示しない場合は nullを指定する)
-     * @param requestCode Dialogの イベントリスナーに返されるリクエストコード
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showProgressDialog(Activity activity, String title, String message, int requestCode) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity, STYLE_PROGRESS_DIALOG)
-                .setRequestCode(requestCode)
-                .setTitle(title)
-                .setMessage(message);
-        return builder.show();
-    }
-
-    /**
-     * OKボタンのみの メッセージダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param title ダイアログのタイトル文字列 (表示しない場合は nullを指定する)
-     * @param message メッセージ文字列 (表示しない場合は nullを指定する)
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showProgressDialog(Activity activity, String title, String message) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity, STYLE_PROGRESS_DIALOG)
-                .setTitle(title)
-                .setMessage(message);
-        return builder.show();
-    }
-
-    /**
-     * OKボタンのみの メッセージダイアログを表示する
-     * @param activity 呼び出すActivity
-     * @param titleId ダイアログのタイトルのリソースID (表示しない場合は 0を指定する)
-     * @param messageId メッセージのリソースID (表示しない場合は 0を指定する)
-     * @return 生成されたDialogFragmentオブジェクト
-     */
-    public static DialogFragment showProgressDialog(Activity activity, int titleId, int messageId) {
-        DialogUi.Builder builder = new DialogUi.Builder(activity, STYLE_PROGRESS_DIALOG)
-                .setTitle(titleId)
-                .setMessage(messageId);
-        return builder.show();
-    }
 
     /**
      * Dialog作成時に与えたリクエストコードを指定して Dialogを 閉じる
@@ -441,6 +112,35 @@ public class DialogUi {
 
     public static String getFragmentTag(int requestCode) {
         return TAG_PREFIX + Integer.toHexString(requestCode);
+    }
+
+
+    //////////////////////////
+    //
+    // private functions
+
+    private static FragmentManager getFragmentManager(Activity activity) {
+        // Fragment関連の import宣言  API level11以降のみのサポートの場合
+        return activity.getFragmentManager();
+    }
+    // Support Libraryの FragmentActivity もしくは AppCompatActivityを使用する場合
+// （AppCompatActivityは FragmentActivityを継承している）
+//    private static FragmentManager getFragmentManager(Activity activity) {
+//        //Fragment関連の import宣言  API level10以前をサポートする場合 (support-v4ライブラリ必須)
+//        if (activity instanceof FragmentActivity) {
+//            return ((FragmentActivity)activity).getSupportFragmentManager();
+//        }
+//        return null;
+//    }
+
+    private static String getString(Context context, int resourceId) {
+        if (resourceId <= 0) return null;
+        return context.getString(resourceId);
+    }
+
+    private static String[] getStringArrays(Context context, int resourceId) {
+        if (resourceId <= 0) return null;
+        return context.getResources().getStringArray(resourceId);
     }
 
 
@@ -506,18 +206,22 @@ public class DialogUi {
             return setMessage(getString(mActivity, messageId));
         }
 
-        public Builder setPositiveButton(String text) {
-            mLabelPositive = text;
-            return this;
-        }
-
         public Builder setIcon(int iconId) {
             mIconId = iconId;
             return this;
         }
 
+        public Builder setPositiveButton(String text) {
+            mLabelPositive = text;
+            return this;
+        }
+
         public Builder setPositiveButton(int textId) {
             return setPositiveButton(getString(mActivity, textId));
+        }
+
+        public Builder setPositiveButton() {
+            return setPositiveButton(getString(mActivity, ID_STRING_DEFAULT_OK));
         }
 
         public Builder setNegativeButton(String text) {
@@ -529,13 +233,17 @@ public class DialogUi {
             return setNegativeButton(getString(mActivity, textId));
         }
 
-        public Builder setNeutral(String text) {
+        public Builder setNegativeButton() {
+            return setPositiveButton(getString(mActivity, ID_STRING_DEFAULT_CANCEL));
+        }
+
+        public Builder setNeutralButton(String text) {
             mLabelNeutral = text;
             return this;
         }
 
-        public Builder setNeutral(int textId) {
-            return setNeutral(getString(mActivity, textId));
+        public Builder setNeutralButton(int textId) {
+            return setNeutralButton(getString(mActivity, textId));
         }
 
         public Builder setItems(String[] items) {
@@ -659,7 +367,7 @@ public class DialogUi {
             if (iconId > 0) builder.setIcon(iconId);
             if (mStyle == STYLE_PROGRESS_DIALOG) {
                 builder.setView(buildProgressDialog(getActivity(), message));
-                // messageは ProgressDialog(風の)Viewで表示するので、AlertDialogオリジナルの setMessage()を明示的にスキップする。
+                // messageは ProgressDialog(風の)Viewで表示するので、AlertDialogオリジナルの setMessage()を行わないようにする。
                 message = null;
 
             } else if (layoutId != ID_LAYOUT_DEFAULT
@@ -669,6 +377,10 @@ public class DialogUi {
                 builder.setView(mCustomView);
 
             } else if (mChoiceList != null) {
+                // setMessage()を実行すると setSingleChoiceItems()等が無視されるので、
+                // setSingleChoiceItems()等を呼び出す場合は、setMessage()を行わないようにする。
+                message = null;
+
                 // 選択リストを設定
                 switch (listType) {
                     case LIST_TYPE_SINGLE_CHOICE:
@@ -690,9 +402,6 @@ public class DialogUi {
                         builder.setItems(mChoiceList, this);
                         break;
                 }
-                // setMessage()を実行すると setSingleChoiceItems()が無視されるので、
-                // setSingleChoiceItems()を行った場合は、setMessage()を明示的にスキップする様にする。
-                message = null;
             }
             if (message != null) builder.setMessage(message);   // messageと カスタムViewは両立する
 
@@ -774,35 +483,6 @@ public class DialogUi {
 
             return layout;
         }
-    }
-
-
-    //////////////////////////
-    //
-    // private functions
-
-    private static FragmentManager getFragmentManager(Activity activity) {
-        // Fragment関連の import宣言  API level11以降のみのサポートの場合
-        return activity.getFragmentManager();
-    }
-    // Support Libraryの FragmentActivity もしくは AppCompatActivityを使用する場合
-// （AppCompatActivityは FragmentActivityを継承している）
-//    private static FragmentManager getFragmentManager(Activity activity) {
-//        //Fragment関連の import宣言  API level10以前をサポートする場合 (support-v4ライブラリ必須)
-//        if (activity instanceof FragmentActivity) {
-//            return ((FragmentActivity)activity).getSupportFragmentManager();
-//        }
-//        return null;
-//    }
-
-    private static String getString(Context context, int resourceId) {
-        if (resourceId <= 0) return null;
-        return context.getString(resourceId);
-    }
-
-    private static String[] getStringArrays(Context context, int resourceId) {
-        if (resourceId <= 0) return null;
-        return context.getResources().getStringArray(resourceId);
     }
 
 }

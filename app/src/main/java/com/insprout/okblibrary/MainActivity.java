@@ -44,23 +44,26 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
                 break;
 
             case R.id.btn_dialog1:
-                DialogUi.showOkDialog(this, "タイトル", "メッセージ");
-//                DialogUi.Builder builder = new DialogUi.Builder(this);
-//                builder.setTitle("タイトル").setMessage("メッセージ").setPositiveButton(android.R.string.ok).show();
+                new DialogUi.Builder(this)
+                        .setIcon(R.mipmap.ic_launcher)
+                        .setTitle("タイトル")
+                        .setMessage("メッセージ")
+                        .setPositiveButton(android.R.string.ok)
+                        .show();
                 break;
 
             case R.id.btn_dialog3:
                 // DialogUiのリスナーは Activityに DialogUi.DialogEventListenerインターフェースを実装します
                 // リスナーは Activityに １つの実装となるので ダイアログが複数ある場合は、requestCodeを指定してそれで判別する
                 // requestCodeは 正の値を指定する
-                DialogUi.showButtonsDialog(
-                        this,
-                        "3ボタンのダイアログ",
-                        "メッセージ",
-                        "はい",
-                        "いいえ",
-                        "中立",
-                        RC_DLG_BUTTON3);
+                new DialogUi.Builder(this)
+                        .setTitle("3ボタンのダイアログ")
+                        .setMessage("メッセージ")
+                        .setPositiveButton("はい")
+                        .setNegativeButton("いいえ")
+                        .setNeutralButton("中立")
+                        .setRequestCode(RC_DLG_BUTTON3)
+                        .show();
                 break;
 
             case R.id.btn_dialog_list:
@@ -93,25 +96,25 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
                 break;
 
             case R.id.btn_dialog_custom:
-                DialogUi.showCustomDialog(
-                        this,
-                        "カスタムダイアログ",
-                        "NumberPicker使用例",
-                        R.layout.dlg_number_picker,
-                        "OK",
-                        "キャンセル",
-                        RC_DLG_CUSTOM);
+                new DialogUi.Builder(this)
+                        .setTitle("カスタムダイアログ")
+                        .setMessage("NumberPicker使用例")
+                        .setView(R.layout.dlg_number_picker)
+                        .setPositiveButton("OK")
+                        .setNegativeButton("キャンセル")
+                        .setRequestCode(RC_DLG_CUSTOM)
+                        .show();
                 break;
 
             case R.id.btn_dialog_custom2:
-                DialogUi.showCustomDialog(
-                        this,
-                        "カスタムダイアログ",
-                        "EditText使用例",
-                        R.layout.dlg_edittext,
-                        "OK",
-                        "キャンセル",
-                        RC_DLG_CUSTOM2);
+                new DialogUi.Builder(this)
+                        .setTitle("カスタムダイアログ")
+                        .setMessage("EditText使用例")
+                        .setView(R.layout.dlg_edittext)
+                        .setPositiveButton("OK")
+                        .setNegativeButton("キャンセル")
+                        .setRequestCode(RC_DLG_CUSTOM2)
+                        .show();
                 break;
         }
     }
@@ -120,7 +123,7 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
         String url = UiUtils.getText(this, R.id.et_url);
         if (url == null || url.isEmpty()) return;
 
-        final DialogFragment progressDialog = DialogUi.showProgressDialog(this, "title", "message");
+        final DialogFragment progressDialog = new DialogUi.Builder(this, DialogUi.STYLE_PROGRESS_DIALOG).setMessage("message").show();
         // httpリクエストの responseが返るまで、ボタンを無効にしておく
         UiUtils.enableView(this, R.id.btn_request, false);
         new HttpRequestTask(HttpRequest.METHOD_GET, url, null, new HttpRequestTask.OnResponseListener() {
@@ -136,7 +139,7 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
                 } else {
                     msg = "http status: " + httpStatus;
                 }
-                DialogUi.showOkDialog(MainActivity.this, "通信結果", msg);
+                new DialogUi.Builder(MainActivity.this).setTitle("通信結果").setMessage(msg).setPositiveButton().show();
             }
         }).execute();
     }
@@ -227,18 +230,18 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
                 switch (which) {
                     // 必要があれば、カスタムダイアログの初期化処理を行う
                     case DialogUi.EVENT_DIALOG_CREATED:
-//                        String[] selection = { "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月" };
                         String[] selection = getResources().getStringArray(R.array.choice_list);
                         picker.setMaxValue(selection.length - 1);               // 選択最大値設定
                         picker.setMinValue(0);                                  // 選択最小値設定
                         picker.setDisplayedValues(selection);                   // 表示用ラベル設定
-                        picker.setWrapSelectorWheel(false);                     // ホイール循環設定
+                        picker.setWrapSelectorWheel(true);                     // ホイール循環設定
                         //picker.setValue(selection.length - 1);                  // リストの最後の項目を選択
                         break;
 
                     // OKボタン押下処理
                     case DialogUi.EVENT_BUTTON_POSITIVE:
-                        Toast.makeText(this, "選択：" + picker.getDisplayedValues()[ picker.getValue() ], Toast.LENGTH_SHORT).show();
+                        int index = picker.getValue() - picker.getMinValue();
+                        Toast.makeText(this, "選択：" + picker.getDisplayedValues()[ index ], Toast.LENGTH_SHORT).show();
                         break;
                 }
                 break;
