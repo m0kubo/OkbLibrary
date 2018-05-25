@@ -234,7 +234,7 @@ public class DialogUi {
         }
 
         public Builder setNegativeButton() {
-            return setPositiveButton(getString(mActivity, ID_STRING_DEFAULT_CANCEL));
+            return setNegativeButton(getString(mActivity, ID_STRING_DEFAULT_CANCEL));
         }
 
         public Builder setNeutralButton(String text) {
