@@ -256,6 +256,10 @@ public class DialogUi {
             return setItems(getStringArrays(mActivity, itemsId));
         }
 
+        public Builder setSingleChoiceItems(String[] items) {
+            return setSingleChoiceItems(items, -1);
+        }
+
         public Builder setSingleChoiceItems(String[] items, int checkedItem) {
             mListType = LIST_TYPE_SINGLE_CHOICE;
             mListItems = items;
@@ -263,8 +267,16 @@ public class DialogUi {
             return this;
         }
 
+        public Builder setSingleChoiceItems(int itemsId) {
+            return setSingleChoiceItems(itemsId, -1);
+        }
+
         public Builder setSingleChoiceItems(int itemsId, int checkedItem) {
             return setSingleChoiceItems(getStringArrays(mActivity, itemsId), checkedItem);
+        }
+
+        public Builder setMultiChoiceItems(String[] items) {
+            return setMultiChoiceItems(items, null);
         }
 
         public Builder setMultiChoiceItems(String[] items, boolean[] checkedItems) {
@@ -272,6 +284,10 @@ public class DialogUi {
             mListItems = items;
             mCheckedList = checkedItems;
             return this;
+        }
+
+        public Builder setMultiChoiceItems(int itemsId) {
+            return setMultiChoiceItems(itemsId, null);
         }
 
         public Builder setMultiChoiceItems(int itemsId, boolean[] checkedItems) {
