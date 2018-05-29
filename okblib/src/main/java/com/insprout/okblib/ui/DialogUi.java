@@ -8,6 +8,7 @@ import android.app.FragmentManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.util.SparseArray;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -40,6 +41,8 @@ public class DialogUi {
     public static final int EVENT_DIALOG_CREATED = -100;
     public static final int EVENT_DIALOG_SHOWN = -101;
 
+    // パラメータ省略時のデフォルト値
+    public static final int REQUEST_CODE_DEFAULT = -1;
 
 
     //////////////////////////
@@ -68,7 +71,6 @@ public class DialogUi {
     private static final int LIST_TYPE_MULTI_CHOICE = 2;        // ListView (複数選択)
 
     // パラメータ省略時のデフォルト値
-    private static final int REQUEST_CODE_DEFAULT = -1;
     private static final int ID_LAYOUT_DEFAULT = -1;
     private static final int ID_STRING_DEFAULT_OK = android.R.string.ok;
     private static final int ID_STRING_DEFAULT_CANCEL = android.R.string.cancel;
@@ -101,16 +103,13 @@ public class DialogUi {
 
     /**
      * Dialog作成時に与えたリクエストコードを指定して Dialogを 閉じる
-     * @param activity 呼び出すActivity
      * @param requestCode 作成時に設定した リクエストコード
      */
-    public static void dismissDialog(Activity activity, int requestCode) {
-        FragmentManager manager = getFragmentManager(activity);
-        DialogFragment dialog = (DialogFragment) manager.findFragmentByTag(getFragmentTag(requestCode));
-        if (dialog != null) dialog.dismissAllowingStateLoss();
+    public static void dismissDialog(int requestCode) {
+        DialogUiFragment.dismiss(requestCode);
     }
 
-    public static String getFragmentTag(int requestCode) {
+    private static String getFragmentTag(int requestCode) {
         return TAG_PREFIX + Integer.toHexString(requestCode);
     }
 
@@ -343,7 +342,6 @@ public class DialogUi {
         private int mRequestCode;
         private String[] mChoiceList;
 
-
         @Override
         public void onAttach(Context context) {
             super.onAttach(context);
@@ -361,8 +359,16 @@ public class DialogUi {
         }
 
         @Override
+        public void onDestroyView() {
+            super.onDestroyView();
+            sMapFragment.remove(mRequestCode);
+        }
+
+        @Override
         public Dialog onCreateDialog(Bundle savedInstanceState) {
             mRequestCode = getArguments().getInt(KEY_REQUEST_CODE);
+            sMapFragment.put(mRequestCode, this);
+
             mStyle = getArguments().getInt(KEY_PROGRESS_STYLE, STYLE_ALERT_DIALOG);
             String title = getArguments().getString(KEY_DIALOG_TITLE);
             String message = getArguments().getString(KEY_DIALOG_TEXT);
@@ -437,11 +443,6 @@ public class DialogUi {
         }
 
         @Override
-        public void dismiss() {
-            dismissAllowingStateLoss();
-        }
-
-        @Override
         public void onClick(DialogInterface dialog, int which) {
             callbackToListener(which);
         }
@@ -498,6 +499,33 @@ public class DialogUi {
             layout.addView(tv);
 
             return layout;
+        }
+
+
+        ////////////////////////////////////
+        //
+        // static メンバー/クラス
+        //
+
+        private static SparseArray<DialogUiFragment> sMapFragment = new SparseArray<>();
+
+        /**
+         * リクエストコードを指定して DialogUiFragmentのインスタンスを取得する
+         * (画面の回転などで Fragmentが自動で再作成された場合、タグ名指定でのFragment取得ができなくなるためこのメソッドを用意)
+         * @param requestCode リクエストコード
+         * @return DialogUiFragmentのインスタンス
+         */
+        public static DialogUiFragment get(int requestCode) {
+            return sMapFragment.get(requestCode);
+        }
+
+        /**
+         * リクエストコードを指定して DialogUiFragmentを 非表示にする
+         * @param requestCode リクエストコード
+         */
+        public static void dismiss(int requestCode) {
+            DialogUiFragment fragment = get(requestCode);
+            if (fragment != null) fragment.dismissAllowingStateLoss();
         }
     }
 

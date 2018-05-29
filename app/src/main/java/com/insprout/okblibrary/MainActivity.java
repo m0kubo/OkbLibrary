@@ -6,6 +6,7 @@ import android.app.DialogFragment;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.SparseBooleanArray;
@@ -24,12 +25,14 @@ import com.insprout.okblib.ui.DialogUi;
 import com.insprout.okblib.util.UiUtils;
 
 public class MainActivity extends Activity implements DialogUi.DialogEventListener {
-    private final static int RC_DLG_BUTTON3 = 300;
+    private final static int RC_DLG_BUTTON3 = 103;
     private final static int RC_DLG_CUSTOM = 201;
     private final static int RC_DLG_CUSTOM2 = 202;
     private final static int RC_DLG_LIST_TAP = 400;
     private final static int RC_DLG_LIST_SINGLE_CHOICE = 401;
     private final static int RC_DLG_LIST_MULTI_CHOICE = 402;
+    private final static int RC_DLG_PROGRESS = 0;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,6 +44,7 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
         switch(view.getId()) {
             case R.id.btn_request:
                 httpRequest();
+                //testProgress();
                 break;
 
             case R.id.btn_dialog1:
@@ -48,7 +52,7 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
                         .setIcon(R.mipmap.ic_launcher)
                         .setTitle("タイトル")
                         .setMessage("メッセージ")
-                        .setPositiveButton(android.R.string.ok)
+                        .setPositiveButton()
                         .show();
                 break;
 
@@ -69,8 +73,8 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
             case R.id.btn_dialog_list:
                 new DialogUi.Builder(this)
                         .setTitle("タイトル")
-                        .setNegativeButton(android.R.string.cancel)
                         .setItems(R.array.choice_list)
+                        .setNegativeButton()
                         .setRequestCode(RC_DLG_LIST_TAP)
                         .show();
                 break;
@@ -78,9 +82,9 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
             case R.id.btn_dialog_list_single:
                 new DialogUi.Builder(this)
                         .setTitle("タイトル")
+                        .setSingleChoiceItems(R.array.choice_list, -1)
                         .setPositiveButton(android.R.string.ok)
                         .setNegativeButton(android.R.string.cancel)
-                        .setSingleChoiceItems(R.array.choice_list, -1)
                         .setRequestCode(RC_DLG_LIST_SINGLE_CHOICE)
                         .show();
                 break;
@@ -88,9 +92,9 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
             case R.id.btn_dialog_list_multi:
                 new DialogUi.Builder(this)
                         .setTitle("タイトル")
-                        .setPositiveButton(android.R.string.ok)
-                        .setNegativeButton(android.R.string.cancel)
                         .setMultiChoiceItems(R.array.choice_list, null)
+                        .setPositiveButton()
+                        .setNegativeButton()
                         .setRequestCode(RC_DLG_LIST_MULTI_CHOICE)
                         .show();
                 break;
@@ -111,8 +115,8 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
                         .setTitle("カスタムダイアログ")
                         .setMessage("EditText使用例")
                         .setView(R.layout.dlg_edittext)
-                        .setPositiveButton("OK")
-                        .setNegativeButton("キャンセル")
+                        .setPositiveButton()
+                        .setNegativeButton()
                         .setRequestCode(RC_DLG_CUSTOM2)
                         .show();
                 break;
@@ -142,6 +146,19 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
                 new DialogUi.Builder(MainActivity.this).setTitle("通信結果").setMessage(msg).setPositiveButton().show();
             }
         }).execute();
+    }
+
+    private void testProgress() {
+        final DialogFragment progressDialog = new DialogUi.Builder(this, DialogUi.STYLE_PROGRESS_DIALOG).setMessage("message").show();
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                //progressDialog.dismissAllowingStateLoss();
+                // 画面の回転などで Fragmentが再作成された場合は、DialogFragmentは別のインスタンスになっているので
+                // リクエストコードを指定して DialogFragmentの操作を行うようにする
+                DialogUi.dismissDialog(DialogUi.REQUEST_CODE_DEFAULT);
+            }
+        }, 5000);
     }
 
     @Override
