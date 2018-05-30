@@ -93,6 +93,17 @@
             android:text="カスタムダイアログ（EditText）"
             android:onClick="onClick"/>
 
+        <TextView
+            style="@style/LabelText"
+            android:text="progress dialogテスト"/>
+        <Button
+            android:id="@+id/btn_progress1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAllCaps="false"
+            android:text="Progress Dialog風"
+            android:onClick="onClick"/>
+
     </LinearLayout>
 
 </ScrollView>

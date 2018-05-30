@@ -44,7 +44,10 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
         switch(view.getId()) {
             case R.id.btn_request:
                 httpRequest();
-                //testProgress();
+                break;
+
+            case R.id.btn_progress1:
+                testProgress();
                 break;
 
             case R.id.btn_dialog1:
@@ -149,14 +152,14 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
     }
 
     private void testProgress() {
-        final DialogFragment progressDialog = new DialogUi.Builder(this, DialogUi.STYLE_PROGRESS_DIALOG).setMessage("message").show();
+        final DialogFragment progressDialog = new DialogUi.Builder(this, DialogUi.STYLE_PROGRESS_DIALOG).setMessage("5秒で閉じます").show();
         new Handler().postDelayed(new Runnable() {
             @Override
             public void run() {
                 //progressDialog.dismissAllowingStateLoss();
                 // 画面の回転などで Fragmentが再作成された場合は、DialogFragmentは別のインスタンスになっているので
                 // リクエストコードを指定して DialogFragmentの操作を行うようにする
-                DialogUi.dismissDialog(DialogUi.REQUEST_CODE_DEFAULT);
+                DialogUi.dismiss(DialogUi.REQUEST_CODE_DEFAULT);
             }
         }, 5000);
     }

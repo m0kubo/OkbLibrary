@@ -102,11 +102,20 @@ public class DialogUi {
 
 
     /**
-     * Dialog作成時に与えたリクエストコードを指定して Dialogを 閉じる
+     * Dialog作成時に設定したリクエストコードで Dialogを 閉じる
      * @param requestCode 作成時に設定した リクエストコード
      */
-    public static void dismissDialog(int requestCode) {
+    public static void dismiss(int requestCode) {
         DialogUiFragment.dismiss(requestCode);
+    }
+
+    /**
+     * Dialog作成時に設定したリクエストコードで DialogFragmentを 取得する
+     * @param requestCode 作成時に設定した リクエストコード
+     * @return DialogFragment
+     */
+    public static DialogFragment getFragment(int requestCode) {
+        return DialogUiFragment.get(requestCode);
     }
 
     private static String getFragmentTag(int requestCode) {
@@ -515,7 +524,7 @@ public class DialogUi {
          * @param requestCode リクエストコード
          * @return DialogUiFragmentのインスタンス
          */
-        public static DialogUiFragment get(int requestCode) {
+        public static DialogFragment get(int requestCode) {
             return sMapFragment.get(requestCode);
         }
 
@@ -524,7 +533,7 @@ public class DialogUi {
          * @param requestCode リクエストコード
          */
         public static void dismiss(int requestCode) {
-            DialogUiFragment fragment = get(requestCode);
+            DialogFragment fragment = get(requestCode);
             if (fragment != null) fragment.dismissAllowingStateLoss();
         }
     }
