@@ -87,8 +87,7 @@ public class HttpRequest {
     private String mRequestQuery = null;
     private IRequestBody mRequestBody = null;
     private String mUserAgent = null;
-    private String mUser = null;
-    private String mPassword = null;
+    private String mUserPassword = null;
 
     private int mTimeoutMilliSec = -1;
 
@@ -140,8 +139,9 @@ public class HttpRequest {
     }
 
     public HttpRequest setAuthorization(String account, String password) {
-        mUser = account;
-        mPassword = password;
+        if (account != null) {
+            mUserPassword = account + ":" + (password != null ? password : "");
+        }
         return this;
     }
 
@@ -201,6 +201,10 @@ public class HttpRequest {
     }
 
     public  HttpResponse execute(File... output) {
+        if (mRequestUrl == null || mRequestUrl.isEmpty()) {
+            // リクエストURLが未指定の場合は 400 Bad Requestを返しておく
+            return new HttpResponse(400, null, null, null);
+        }
         HttpResponse response = executeRequest(mRequestUrl, output);
 
         // status 307 Temporary Redirectに対応
@@ -229,8 +233,12 @@ public class HttpRequest {
             if (output.length >= 1) responseFile = output[0];
 
             String urlWithQuery = requestUrl;
-            if (mRequestQuery != null && !mRequestQuery.isEmpty()) urlWithQuery += "?" + mRequestQuery;
+            if (mRequestQuery != null && !mRequestQuery.isEmpty()) urlWithQuery += (requestUrl.indexOf("?")<0 ? "?" : "&") + mRequestQuery;
             url = new URL(urlWithQuery);
+            if (mUserPassword == null) {
+                // ユーザ/パスワードが未設定の場合は URLからの取得も試みる
+                mUserPassword = url.getUserInfo();
+            }
             mUrlCon = (HttpURLConnection)url.openConnection();
 
             if (IGNORE_CERTIFICATE_SSL && mUrlCon instanceof HttpsURLConnection) {
@@ -259,9 +267,8 @@ public class HttpRequest {
                 mUrlCon.setRequestProperty(header.getKey(), (header.getValue() != null ? header.getValue() : ""));
             }
 
-            if (mUser != null) {
-                String userPassword = mUser + ":" + (mPassword != null ? mPassword : "");
-                mUrlCon.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(userPassword.getBytes(), Base64.NO_WRAP));
+            if (mUserPassword != null) {
+                mUrlCon.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(mUserPassword.getBytes(), Base64.NO_WRAP));
             }
             mUrlCon.setRequestProperty( "Accept-Encoding", "" );
             // httpUrlConnectionで EOFExceptionが 発生する問題に対応

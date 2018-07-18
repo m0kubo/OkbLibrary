@@ -97,7 +97,7 @@ public class HttpParameter {
             String name = encode(param.getName(), charset);
             // 名前がカラの場合は スキップする
             if (name.isEmpty()) continue;
-            if (count++ >= 0) builder.append("&");
+            if (count++ >= 1) builder.append("&");
             builder.append(name).append("=").append(encode(param.getValue(), charset));
         }
         return builder.toString();
