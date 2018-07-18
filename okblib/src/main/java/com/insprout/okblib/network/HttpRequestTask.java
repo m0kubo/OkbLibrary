@@ -36,11 +36,6 @@ public class HttpRequestTask extends AsyncTask<File, Void, HttpResponse> {
         return this;
     }
 
-//    public HttpRequestTask setContent(List<HttpParameter> sendFiles, List<HttpParameter> params) {
-//        mApiRequest.setContent(sendFiles, params);
-//        return this;
-//    }
-
     public HttpRequestTask setAuthorization(String user, String password) {
         mApiRequest.setAuthorization(user, password);
         return this;

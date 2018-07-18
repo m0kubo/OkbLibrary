@@ -17,13 +17,66 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="textUri"
-            android:text="https://insprout.sakura.ne.jp/tec_pvs/"
+            android:text="https://git.moya.in/img_service/test/test_post_file.php"
             android:hint="(url)"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="query:"/>
+            <EditText
+                android:id="@+id/et_key1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:inputType="textUri"
+                android:text="url"
+                android:hint="(name)"/>
+            <EditText
+                android:id="@+id/et_value1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:inputType="textUri"
+                android:hint="(value)"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="file:"/>
+            <EditText
+                android:id="@+id/et_key2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:inputType="textUri"
+                android:text="imagefile"
+                android:hint="(name)"/>
+            <EditText
+                android:id="@+id/et_value2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:inputType="textUri"
+                android:text="/sdcard/FLETS_AZK/download_files/01.txt"
+                android:hint="(file path)"/>
+        </LinearLayout>
         <Button
             android:id="@+id/btn_request"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="GET"
+            android:onClick="onClick"/>
+        <Button
+            android:id="@+id/btn_request_post"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="POST"
             android:onClick="onClick"/>
         <!--<TextView
             android:layout_width="wrap_content"

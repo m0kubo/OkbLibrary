@@ -3,7 +3,6 @@ package com.insprout.okblib.network;
 import android.annotation.SuppressLint;
 import android.os.Build;
 import android.util.Base64;
-import android.webkit.MimeTypeMap;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -52,9 +51,6 @@ import javax.net.ssl.X509TrustManager;
  */
 
 public class HttpRequest {
-    public final static String CONTENT_TYPE_WWW_FORM = "application/x-www-form-urlencoded";
-    public final static String CONTENT_TYPE_OCTET_STREAM = "application/octet-stream";
-    public final static String CONTENT_TYPE_JSON = "application/json";
 
     public final static String ENCODING = "UTF-8";
     private final static String RESPONSE_HEADER_LOCATION = "Location";
@@ -88,11 +84,8 @@ public class HttpRequest {
     private Map<String, String> mExtraHeaders = new HashMap<>();
     private int mMethodType = METHOD_GET;
     private String mRequestUrl;
-    private String mContentType = CONTENT_TYPE_WWW_FORM;
-    private int mContentLength = 0;
     private String mRequestQuery = null;
-    private byte[] mRequestBody = null;
-    private MultipartEntity mRequestMultipart = null;
+    private IRequestBody mRequestBody = null;
     private String mUserAgent = null;
     private String mUser = null;
     private String mPassword = null;
@@ -118,28 +111,21 @@ public class HttpRequest {
             // paramsは uriに queryStringとして付加する
             mRequestQuery  = HttpParameter.toQueryString(params, ENCODING);
             mRequestBody = null;
-            mRequestMultipart = null;
-            mContentType = CONTENT_TYPE_WWW_FORM;
-            mContentLength = 0;
 
         } else if (HttpParameter.hasFile(params)) {
             // 送信するFileが指定されている場合は、multipart用の 送信データを作成する
             mRequestQuery = null;
-            mRequestBody = null;
             try {
-                mRequestMultipart = new MultipartEntity(params);
-                mContentType = mRequestMultipart.getContentType();
-                mContentLength = mRequestMultipart.getContentLength();
+                mRequestBody = new MultipartEntity(params);
 
             } catch (Exception e) {
-                mRequestMultipart = null;
-                mContentType = CONTENT_TYPE_OCTET_STREAM;
-                mContentLength = 0;
+                mRequestBody = null;
             }
 
         } else {
             // paramsのみの場合は、x-www-form-urlencodedで送信する
-            setContent(HttpParameter.getBytes(params, ENCODING), CONTENT_TYPE_WWW_FORM);
+            mRequestQuery = null;
+            mRequestBody = new RequestBodyEntity(params);
         }
 
         return this;
@@ -149,15 +135,7 @@ public class HttpRequest {
     // これ以前にsetContent()メソッドで設定した内容は上書きされる
     public HttpRequest setContent(byte[] requestBody, String contentType) {
         mRequestQuery = null;
-        mRequestMultipart = null;    // Multipart形式の entityは消しておく
-        mContentType = (contentType != null ? contentType : CONTENT_TYPE_OCTET_STREAM);
-        if (hasRequestBody() && requestBody != null) {
-            mRequestBody = requestBody;
-            mContentLength = mRequestBody.length;
-        } else {
-            mRequestBody = null;
-            mContentLength = 0;
-        }
+        mRequestBody = new RequestBodyEntity(requestBody, contentType);
         return this;
     }
 
@@ -255,6 +233,11 @@ public class HttpRequest {
             url = new URL(urlWithQuery);
             mUrlCon = (HttpURLConnection)url.openConnection();
 
+            if (IGNORE_CERTIFICATE_SSL && mUrlCon instanceof HttpsURLConnection) {
+                // 自己署名証明書（オレオレ証明書）サイトに接続させるためのパッチ
+                ignoreCertificateSsl((HttpsURLConnection)mUrlCon);
+            }
+
             // タイムアウト時間の設定
             if (mTimeoutMilliSec < 0) {
                 // TIMEOUT時間が明示的に指定されていなければ、デフォルトの時間を使用する
@@ -284,19 +267,16 @@ public class HttpRequest {
             // httpUrlConnectionで EOFExceptionが 発生する問題に対応
             if (Build.VERSION.SDK_INT > 13) mUrlCon.setRequestProperty("Connection", "close");
 
-            if (mRequestMultipart != null || mRequestBody != null) {
-                mUrlCon.setRequestProperty("Content-Type", mContentType);
+            if (mRequestBody != null) {
+                mUrlCon.setRequestProperty("Content-Type", mRequestBody.getContentType());
                 // 送信データサイズをセット
-                mUrlCon.setFixedLengthStreamingMode(mContentLength);
+                mUrlCon.setFixedLengthStreamingMode(mRequestBody.getContentLength());
                 // 出力を行うように設定
                 mUrlCon.setDoOutput(true);
             }
 
             // httpレスポンスを受け取るように設定
             mUrlCon.setDoInput(true);
-
-            // 自己署名証明書（オレオレ証明書）サイトに接続させるためのパッチ
-            if (IGNORE_CERTIFICATE_SSL && mUrlCon instanceof HttpsURLConnection) ignoreCertificateSsl((HttpsURLConnection)mUrlCon);
 
 
             // http リクエスト コネクション
@@ -316,18 +296,11 @@ public class HttpRequest {
                 }
             } while (!connected);
 
-            // 送信するデータがあれば、送る
-            if (mRequestMultipart != null) {
+            // 送信するデータがあれば送る
+            if (mRequestBody != null) {
                 outDataStream = new DataOutputStream(mUrlCon.getOutputStream());
                 // multipartデータを request bodyで 送信する
-                mRequestMultipart.writeTo(outDataStream);
-                outDataStream.flush();
-                outDataStream.close();
-                outDataStream = null;
-            } else if (mRequestBody != null) {
-                outDataStream = new DataOutputStream(mUrlCon.getOutputStream());
-                // rawデータを request bodyで 送信する
-                outDataStream.write(mRequestBody);
+                mRequestBody.writeTo(outDataStream);
                 outDataStream.flush();
                 outDataStream.close();
                 outDataStream = null;
@@ -526,30 +499,27 @@ public class HttpRequest {
         }
     }
 
-    @SuppressLint("TrulyRandom")
     private void ignoreCertificateSsl(HttpsURLConnection httpsConnection) throws NoSuchAlgorithmException, KeyManagementException {
-        //証明書情報　全て空を返す
-        KeyManager[] keyMgr = null;
-        TrustManager[] trustMgr = {
+        // 証明書チェーンの検証をスキップ
+        KeyManager[] keyManagers = null;
+        TrustManager[] transManagers = {
                 new X509TrustManager() {
                     public X509Certificate[] getAcceptedIssuers() {
                         return new X509Certificate[0];
                     }
                     @Override
-                    public void checkClientTrusted(X509Certificate[] chain,
-                                                   String authType) throws CertificateException {
+                    public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
                     }
                     @Override
-                    public void checkServerTrusted(X509Certificate[] chain,
-                                                   String authType) throws CertificateException {
+                    public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
                     }
                 }
         };
         SSLContext sslcontext = SSLContext.getInstance("SSL");
-        sslcontext.init(keyMgr, trustMgr, new SecureRandom());
+        sslcontext.init(keyManagers, transManagers, new SecureRandom());
 
-        //ホスト名の検証　常にtrueを返す
-        HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
+        // 証明書に書かれているCommon NameとURLのホスト名が一致していることの検証をスキップ
+        httpsConnection.setHostnameVerifier(new HostnameVerifier() {
             @Override
             public boolean verify(String hostname, SSLSession session) {
                 return true;
@@ -561,7 +531,56 @@ public class HttpRequest {
     }
 
 
-    private class MultipartEntity {
+    //////////////////////////////////////////////////////////////////////
+    //
+    // Interface
+    //
+
+    private interface IRequestBody {
+
+        int getContentLength();
+
+        String getContentType();
+
+        void writeTo(OutputStream outStream) throws IOException, InterruptedException;
+    }
+
+
+    private class RequestBodyEntity implements IRequestBody {
+        private static final String CONTENT_TYPE_OCTET_STREAM = "application/octet-stream";
+        private final static String CONTENT_TYPE_WWW_FORM = "application/x-www-form-urlencoded";
+
+        private byte[] mRequestBody;
+        private String mContentType;
+
+        public RequestBodyEntity(byte[] requestBody, String contentType) {
+            mRequestBody = requestBody;
+            mContentType = (contentType != null ? contentType : CONTENT_TYPE_OCTET_STREAM);
+        }
+
+        public RequestBodyEntity(List<HttpParameter> params) {
+            mRequestBody = HttpParameter.getBytes(params, ENCODING);
+            mContentType = CONTENT_TYPE_WWW_FORM;
+        }
+
+        @Override
+        public int getContentLength() {
+            return (mRequestBody != null ? mRequestBody.length : 0);
+        }
+
+        @Override
+        public String getContentType() {
+            return mContentType;
+        }
+
+        @Override
+        public void writeTo(OutputStream outStream) throws IOException, InterruptedException {
+            if (outStream != null) outStream.write(mRequestBody);
+        }
+    }
+
+
+    private class MultipartEntity implements IRequestBody {
         private final String mBoundary;
         private final String mBoundaryStart;
         private final String mBoundaryEnd;
@@ -620,6 +639,7 @@ public class HttpRequest {
         }
 
         public void addEntities(List<HttpParameter> params) throws IOException {
+            if (params == null) return;
             for (HttpParameter param : params) {
                 addEntity(param);
             }
@@ -634,13 +654,6 @@ public class HttpRequest {
             }
         }
 
-        // form data パート（複数パート分）の 登録を行う
-        private void addFormDataPart(List<HttpParameter> params) throws IOException {
-            if (params == null) return;
-            for (HttpParameter param : params) {
-                addFormDataPart(param.getName(), param.getValue());
-            }
-        }
 
         private void addFormDataPart(HttpParameter param) throws IOException {
             if (param != null) addFormDataPart(param.getName(), param.getValue());
@@ -659,28 +672,14 @@ public class HttpRequest {
             mFormDataPart.write(("\r\n").getBytes(ENCODING));
         }
 
-        // file パート（複数パート分）の 登録を行う
-        private void addFilePart(List<HttpParameter> files) throws IOException {
-            if (files == null) return;
-            for (HttpParameter param : files) {
-                if (param.hasFile()) {
-                    addFilePart(param.getName(), param.getFile(), param.getMimeType());
-                }
-            }
-        }
 
-        // file パート（複数パート分）の 登録を行う
+        // file パート（1パート分）の 登録を行う
         private void addFilePart(HttpParameter param) throws IOException {
             if (param != null && param.hasFile()) {
                 addFilePart(param.getName(), param.getFile(), param.getMimeType());
             }
         }
 
-        // file パート（1パート分）の 登録を行う
-        private void addFilePart(String key, File value) throws IOException {
-            String mimeType = HttpParameter.getMimeTypeFromExtension(value);
-            mFilePart.add(new FilePartEntity(key, value, mimeType));
-        }
 
         // file パート（1パート分）の 登録を行う
         private void addFilePart(String key, File value, String mimeType) throws IOException {

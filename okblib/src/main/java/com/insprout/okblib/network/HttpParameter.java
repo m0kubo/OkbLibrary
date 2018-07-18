@@ -93,6 +93,7 @@ public class HttpParameter {
         StringBuilder builder = new StringBuilder();
         int count = 0;
         for (HttpParameter param : params) {
+            if (param == null) continue;
             String name = encode(param.getName(), charset);
             // 名前がカラの場合は スキップする
             if (name.isEmpty()) continue;

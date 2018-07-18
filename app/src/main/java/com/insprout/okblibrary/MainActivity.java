@@ -18,11 +18,16 @@ import android.widget.ListView;
 import android.widget.NumberPicker;
 import android.widget.Toast;
 
+import com.insprout.okblib.network.HttpParameter;
 import com.insprout.okblib.network.HttpRequest;
 import com.insprout.okblib.network.HttpRequestTask;
 import com.insprout.okblib.network.HttpResponse;
 import com.insprout.okblib.ui.DialogUi;
 import com.insprout.okblib.util.UiUtils;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends Activity implements DialogUi.DialogEventListener {
     private final static int RC_DLG_BUTTON3 = 103;
@@ -43,7 +48,10 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
     public void onClick(View view) {
         switch(view.getId()) {
             case R.id.btn_request:
-                httpRequest();
+                httpRequestGet();
+                break;
+            case R.id.btn_request_post:
+                httpRequestPost();
                 break;
 
             case R.id.btn_progress1:
@@ -126,14 +134,42 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
         }
     }
 
-    private void httpRequest() {
+    private void httpRequestGet() {
+        httpRequest(HttpRequest.METHOD_GET);
+    }
+
+    private void httpRequestPost() {
+        httpRequest(HttpRequest.METHOD_POST);
+    }
+
+    private void httpRequest(int method) {
         String url = UiUtils.getText(this, R.id.et_url);
         if (url == null || url.isEmpty()) return;
+
+        String key1 = UiUtils.getText(this, R.id.et_key1);
+        String val1 = UiUtils.getText(this, R.id.et_value1);
+        String key2 = UiUtils.getText(this, R.id.et_key2);
+        String val2 = UiUtils.getText(this, R.id.et_value2);
+        File file = null;
+        if (val2 != null && !val2.isEmpty()) {
+            file = new File(val2);
+            if (!file.exists()) file = null;
+        }
+
+        List<HttpParameter> params = null;
+        HttpParameter param = null;
+        if (key1 != null && !key1.isEmpty()) {
+            params = new ArrayList<>();
+            params.add(new HttpParameter(key1, val1));
+            if (key2 != null && !key2.isEmpty() && file != null) params.add(new HttpParameter(key2, file));
+        }
+
 
         final DialogFragment progressDialog = new DialogUi.Builder(this, DialogUi.STYLE_PROGRESS_DIALOG).setMessage("message").show();
         // httpリクエストの responseが返るまで、ボタンを無効にしておく
         UiUtils.enableView(this, R.id.btn_request, false);
-        new HttpRequestTask(HttpRequest.METHOD_GET, url, null, new HttpRequestTask.OnResponseListener() {
+
+        new HttpRequestTask(method, url, params, new HttpRequestTask.OnResponseListener() {
             @Override
             public void onResponse(HttpResponse response) {
                 progressDialog.dismissAllowingStateLoss();
@@ -150,6 +186,7 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
             }
         }).execute();
     }
+
 
     private void testProgress() {
         final DialogFragment progressDialog = new DialogUi.Builder(this, DialogUi.STYLE_PROGRESS_DIALOG).setMessage("5秒で閉じます").show();
