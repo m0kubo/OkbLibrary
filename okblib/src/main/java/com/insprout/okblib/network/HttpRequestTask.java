@@ -16,30 +16,45 @@ public class HttpRequestTask extends AsyncTask<File, Void, HttpResponse> {
     private HttpRequest mApiRequest = null;
     private OnResponseListener mListener = null;
 
+    public HttpRequestTask(int method, final String url, OnResponseListener listener) {
+        mApiRequest = new HttpRequest(method, url);
+        mListener = listener;
+    }
+
     public HttpRequestTask(int method, final String url, List<HttpParameter> params, OnResponseListener listener) {
         mApiRequest = new HttpRequest(method, url, params);
         mListener = listener;
     }
 
-    public HttpRequestTask(int method, final String url, List<HttpParameter> params, OnResponseListener listener, Map<String, String> extraHeaders) {
-        mApiRequest = new HttpRequest(method, url, params, extraHeaders);
-        mListener = listener;
+    public HttpRequestTask setContent(String contentType, byte[] requestBody) {
+        mApiRequest.setContent(requestBody, contentType);
+        return this;
     }
 
-    public HttpRequestTask(int method, final String url, List<HttpParameter> params, OnResponseListener listener, Map<String, String> extraHeaders, int timeoutSec) {
+    public HttpRequestTask setContent(List<HttpParameter> params) {
+        mApiRequest.setContent(params);
+        return this;
+    }
+
+//    public HttpRequestTask setContent(List<HttpParameter> sendFiles, List<HttpParameter> params) {
+//        mApiRequest.setContent(sendFiles, params);
+//        return this;
+//    }
+
+    public HttpRequestTask setAuthorization(String user, String password) {
+        mApiRequest.setAuthorization(user, password);
+        return this;
+    }
+
+    public HttpRequestTask setTimeout(int timeoutSec) {
         // Timeoutは ミリ秒単位で指定するので、1000倍する
-        mApiRequest = new HttpRequest(method, url, params, extraHeaders, timeoutSec * 1000);
-        mListener = listener;
+        mApiRequest.setTimeout(timeoutSec * 1000);
+        return this;
     }
 
-    public HttpRequestTask(int method, final String url, String contentType, byte[] requestBody, OnResponseListener listener) {
-        mApiRequest = new HttpRequest(method, url, contentType, requestBody, null);
-        mListener = listener;
-    }
-
-    public HttpRequestTask(int method, final String url, String contentType, byte[] requestBody, OnResponseListener listener, Map<String, String> extraHeaders) {
-        mApiRequest = new HttpRequest(method, url, contentType, requestBody, extraHeaders);
-        mListener = listener;
+    public HttpRequestTask addRequestHeaders(Map<String, String> extraHeaders) {
+        mApiRequest.addRequestHeaders(extraHeaders);
+        return this;
     }
 
 

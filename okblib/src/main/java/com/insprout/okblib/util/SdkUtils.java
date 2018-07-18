@@ -105,7 +105,7 @@ public class SdkUtils {
 
     /**
      * 指定のパーミッションが、以前にユーザから「今後は確認しない」にチェックが付けられたかどうかをチェックする
-     * @param activity 呼び出しているAcitivity
+     * @param activity 呼び出しているActivity
      * @param permissions チェックするパーミッション(複数)
      * @return true: 指定のパーミッションは 全て「今後は確認しない」にチェック無し。(確認画面を表示してよい)  false: 1つ以上のものが「今後は確認しない」にチェックされた
      */

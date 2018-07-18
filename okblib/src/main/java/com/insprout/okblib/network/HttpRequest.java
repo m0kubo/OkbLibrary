@@ -2,6 +2,7 @@ package com.insprout.okblib.network;
 
 import android.annotation.SuppressLint;
 import android.os.Build;
+import android.util.Base64;
 import android.webkit.MimeTypeMap;
 
 import java.io.BufferedInputStream;
@@ -84,87 +85,105 @@ public class HttpRequest {
 
 
     private HttpURLConnection mUrlCon = null;
-    private Map<String, String> mExtraHeaders = null;
+    private Map<String, String> mExtraHeaders = new HashMap<>();
     private int mMethodType = METHOD_GET;
     private String mRequestUrl;
     private String mContentType = CONTENT_TYPE_WWW_FORM;
+    private int mContentLength = 0;
+    private String mRequestQuery = null;
     private byte[] mRequestBody = null;
-    private MultipartEntity mMultipartEntity = null;
+    private MultipartEntity mRequestMultipart = null;
+    private String mUserAgent = null;
+    private String mUser = null;
+    private String mPassword = null;
 
     private int mTimeoutMilliSec = -1;
 
 
-
-
-    public HttpRequest(int method, String url, List<HttpParameter> params) {
-        this(method, url, params, null, null);
-    }
-
-    public HttpRequest(int method, String url, List<HttpParameter> params, Map<String, String> extraHeaders) {
-        this(method, url, params, null, extraHeaders);
-    }
-
-    // タイムアウト時間を指定
-    public HttpRequest(int method, String url, List<HttpParameter> params, Map<String, String> extraHeaders, int timeoutMilliSec) {
-        this(method, url, params, null, extraHeaders);
-        mTimeoutMilliSec = timeoutMilliSec;
-    }
-
-    // Fileを Multipart形式で送信する場合の コンストラクタ
-    public HttpRequest(int method, String url, List<HttpParameter> params, List<HttpParameter> sendFiles, Map<String, String> extraHeaders) {
-
+    public HttpRequest(int method, String url) {
         mMethodType = method;
         mRequestUrl = url;
-        String queryString = HttpParameter.toQueryString(params, ENCODING);
+    }
 
-        if (hasResponseBody(mMethodType)) {
-            // request bodyで データ送信を行うための準備をする
-            if (sendFiles != null && sendFiles.size() > 0) {
-                // multipart用の 送信データを作成する
-                try {
-                    mMultipartEntity = new MultipartEntity();
-                    mMultipartEntity.addFormDataPart(params);
-                    mMultipartEntity.addFilePart(sendFiles);
+    public HttpRequest(int method, String url, List<HttpParameter> params) {
+        this(method, url);
+        setContent(params);
+    }
 
-                } catch (Exception e) {
-                    mMultipartEntity = null;
-                }
+    // これ以前にsetContent()メソッドで設定した内容は上書きされる
+    public HttpRequest setContent(List<HttpParameter> params) {
 
-            } else {
-                // queryStringのみの場合は、x-www-form-urlencodedで送信する
-                // queryStringを エンコードして 送信データを作成
-                try {
-                    mRequestBody = queryString.getBytes(ENCODING);
-                } catch (UnsupportedEncodingException e) {
-                    mRequestBody = queryString.getBytes();
-                }
+        if (!hasRequestBody()) {
+            // GETなどの場合は Fileは無視する
+            // paramsは uriに queryStringとして付加する
+            mRequestQuery  = HttpParameter.toQueryString(params, ENCODING);
+            mRequestBody = null;
+            mRequestMultipart = null;
+            mContentType = CONTENT_TYPE_WWW_FORM;
+            mContentLength = 0;
+
+        } else if (HttpParameter.hasFile(params)) {
+            // 送信するFileが指定されている場合は、multipart用の 送信データを作成する
+            mRequestQuery = null;
+            mRequestBody = null;
+            try {
+                mRequestMultipart = new MultipartEntity(params);
+                mContentType = mRequestMultipart.getContentType();
+                mContentLength = mRequestMultipart.getContentLength();
+
+            } catch (Exception e) {
+                mRequestMultipart = null;
+                mContentType = CONTENT_TYPE_OCTET_STREAM;
+                mContentLength = 0;
             }
 
         } else {
-            if (!queryString.isEmpty()) {
-                // uriに queryStringを付加する
-                mRequestUrl += "?" + queryString;
-            }
+            // paramsのみの場合は、x-www-form-urlencodedで送信する
+            setContent(HttpParameter.getBytes(params, ENCODING), CONTENT_TYPE_WWW_FORM);
         }
 
-        // セッションIDの設定
-        mExtraHeaders = extraHeaders;
-
+        return this;
     }
 
-    // rawデータをrequest bodyで送信する場合の コンストラクタ
-    public HttpRequest(int method, String url, String contentType, byte[] requestBody, Map<String, String> apiExtraHeaders) {
-        this(method, url, null, (List<HttpParameter>)null, apiExtraHeaders);
-        // requestBodyは メソッドが POSTまたは PUTのときのみ有効
-        if (hasResponseBody(method)) {
-            if (requestBody != null) {
-                mRequestBody = requestBody;
-            } else {
-                mRequestBody = new byte[0];
-            }
-            if (contentType != null) mContentType = contentType;
+    // request bodyで 任意のデータを送信する場合
+    // これ以前にsetContent()メソッドで設定した内容は上書きされる
+    public HttpRequest setContent(byte[] requestBody, String contentType) {
+        mRequestQuery = null;
+        mRequestMultipart = null;    // Multipart形式の entityは消しておく
+        mContentType = (contentType != null ? contentType : CONTENT_TYPE_OCTET_STREAM);
+        if (hasRequestBody() && requestBody != null) {
+            mRequestBody = requestBody;
+            mContentLength = mRequestBody.length;
+        } else {
+            mRequestBody = null;
+            mContentLength = 0;
         }
+        return this;
     }
+
+    public HttpRequest setAuthorization(String account, String password) {
+        mUser = account;
+        mPassword = password;
+        return this;
+    }
+
+    // User Agentを指定
+    public HttpRequest setUserAgent(String userAgent) {
+        mUserAgent = userAgent;
+        return this;
+    }
+
+    // タイムアウト時間を指定
+    public HttpRequest setTimeout(int timeoutMilliSec) {
+        mTimeoutMilliSec = timeoutMilliSec;
+        return this;
+    }
+
+    public HttpRequest addRequestHeaders(Map<String, String> extraHeaders) {
+        if (extraHeaders != null) mExtraHeaders.putAll(extraHeaders);
+        return this;
+    }
+
 
     private String toMethodString(int type) {
         switch (type) {
@@ -186,8 +205,8 @@ public class HttpRequest {
         }
     }
 
-    private boolean hasResponseBody(int method) {
-        switch(method) {
+    private boolean hasRequestBody() {
+        switch(mMethodType) {
             case METHOD_POST:
             case METHOD_PUT:
             case METHOD_PATCH:
@@ -231,7 +250,9 @@ public class HttpRequest {
             // http requestの レスポンス出力先にファイルが指定されている場合
             if (output.length >= 1) responseFile = output[0];
 
-            url = new URL(requestUrl);
+            String urlWithQuery = requestUrl;
+            if (mRequestQuery != null && !mRequestQuery.isEmpty()) urlWithQuery += "?" + mRequestQuery;
+            url = new URL(urlWithQuery);
             mUrlCon = (HttpURLConnection)url.openConnection();
 
             // タイムアウト時間の設定
@@ -248,31 +269,25 @@ public class HttpRequest {
             mUrlCon.setConnectTimeout(TIMEOUT_CONNECTION_MILLI_SEC);
 
             // User-Agent設定
-//            mUrlCon.setRequestProperty("User-Agent", HTTP_USER_AGENT);
+            if (mUserAgent != null) mUrlCon.setRequestProperty("User-Agent", mUserAgent);
 
             mUrlCon.setRequestMethod(toMethodString(mMethodType));
-            if (mExtraHeaders != null) {
-                for(Map.Entry<String, String> header : mExtraHeaders.entrySet()) {
-                    mUrlCon.setRequestProperty(header.getKey(), (header.getValue() != null ? header.getValue() : ""));
-                }
+            for(Map.Entry<String, String> header : mExtraHeaders.entrySet()) {
+                mUrlCon.setRequestProperty(header.getKey(), (header.getValue() != null ? header.getValue() : ""));
             }
 
+            if (mUser != null) {
+                String userPassword = mUser + ":" + (mPassword != null ? mPassword : "");
+                mUrlCon.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(userPassword.getBytes(), Base64.NO_WRAP));
+            }
             mUrlCon.setRequestProperty( "Accept-Encoding", "" );
             // httpUrlConnectionで EOFExceptionが 発生する問題に対応
             if (Build.VERSION.SDK_INT > 13) mUrlCon.setRequestProperty("Connection", "close");
 
-            if (mMultipartEntity != null) {
-                // multipart用のヘッダを宣言
-                mUrlCon.setRequestProperty("Content-Type", mMultipartEntity.getContentType());
-                // 送信データサイズをセット
-                mUrlCon.setFixedLengthStreamingMode(mMultipartEntity.getContentLength());
-                // 出力を行うように設定
-                mUrlCon.setDoOutput(true);
-
-            } else if (mRequestBody != null) {
+            if (mRequestMultipart != null || mRequestBody != null) {
                 mUrlCon.setRequestProperty("Content-Type", mContentType);
                 // 送信データサイズをセット
-                mUrlCon.setFixedLengthStreamingMode(mRequestBody.length);
+                mUrlCon.setFixedLengthStreamingMode(mContentLength);
                 // 出力を行うように設定
                 mUrlCon.setDoOutput(true);
             }
@@ -302,10 +317,10 @@ public class HttpRequest {
             } while (!connected);
 
             // 送信するデータがあれば、送る
-            if (mMultipartEntity != null) {
+            if (mRequestMultipart != null) {
                 outDataStream = new DataOutputStream(mUrlCon.getOutputStream());
                 // multipartデータを request bodyで 送信する
-                mMultipartEntity.writeTo(outDataStream);
+                mRequestMultipart.writeTo(outDataStream);
                 outDataStream.flush();
                 outDataStream.close();
                 outDataStream = null;
@@ -565,6 +580,11 @@ public class HttpRequest {
             mBytesBoundaryEnd = mBoundaryEnd.getBytes(ENCODING);
         }
 
+        public MultipartEntity(List<HttpParameter> params) throws UnsupportedEncodingException, IOException {
+            this();
+            addEntities(params);
+        }
+
         // マルチパート用 Content-Typeを返す
         public String getContentType() {
             return "multipart/form-data; boundary=" + mBoundary;
@@ -573,7 +593,7 @@ public class HttpRequest {
         // multipartデータのサイズを返す
         public int getContentLength() {
             // 送信するパートが 何もなければ、0を返す
-            if (isNoPart()) return 0;
+            if (!hasEntity()) return 0;
 
             int length = mFormDataPart.toByteArray().length + mBytesBoundaryEnd.length;
             for (FilePartEntity fileEntity : mFilePart) {
@@ -585,7 +605,7 @@ public class HttpRequest {
         // multipartデータの 出力を行う
         public void writeTo(OutputStream outStream) throws IOException, InterruptedException {
             // 送信するパートが 何もなければ、0サイズの書き込みを行う。終了バウンダリーの書き込みも行わない
-            if (isNoPart()) {
+            if (!hasEntity()) {
                 outStream.write(new byte[0]);
                 return;
             }
@@ -599,16 +619,35 @@ public class HttpRequest {
             outStream.write(mBytesBoundaryEnd);
         }
 
+        public void addEntities(List<HttpParameter> params) throws IOException {
+            for (HttpParameter param : params) {
+                addEntity(param);
+            }
+        }
+
+        public void addEntity(HttpParameter param) throws IOException {
+            if (param == null) return;
+            if (param.hasFile()) {
+                addFilePart(param);
+            } else {
+                addFormDataPart(param);
+            }
+        }
+
         // form data パート（複数パート分）の 登録を行う
-        public void addFormDataPart(List<HttpParameter> params) throws IOException {
+        private void addFormDataPart(List<HttpParameter> params) throws IOException {
             if (params == null) return;
             for (HttpParameter param : params) {
                 addFormDataPart(param.getName(), param.getValue());
             }
         }
 
+        private void addFormDataPart(HttpParameter param) throws IOException {
+            if (param != null) addFormDataPart(param.getName(), param.getValue());
+        }
+
         // form data パート（1パート分）の 登録を行う
-        public void addFormDataPart(String key, String value) throws IOException {
+        private void addFormDataPart(String key, String value) throws IOException {
             // keyが指定されているか確認する
             if (key == null || key.length() == 0) return;
 
@@ -621,28 +660,35 @@ public class HttpRequest {
         }
 
         // file パート（複数パート分）の 登録を行う
-        public void addFilePart(List<HttpParameter> files) throws IOException {
+        private void addFilePart(List<HttpParameter> files) throws IOException {
             if (files == null) return;
             for (HttpParameter param : files) {
-                String key = param.getName();
-                String path = param.getValue();
-                File file = new File(path);
-                addFilePart(key, file);
+                if (param.hasFile()) {
+                    addFilePart(param.getName(), param.getFile(), param.getMimeType());
+                }
+            }
+        }
+
+        // file パート（複数パート分）の 登録を行う
+        private void addFilePart(HttpParameter param) throws IOException {
+            if (param != null && param.hasFile()) {
+                addFilePart(param.getName(), param.getFile(), param.getMimeType());
             }
         }
 
         // file パート（1パート分）の 登録を行う
-        public void addFilePart(String key, File value) throws IOException {
-            String filename = value.getName();
-            String mimeType = getMimeTypeFromExtension(filename);
-            if (mimeType == null || mimeType.length() == 0) mimeType = CONTENT_TYPE_OCTET_STREAM;
-
+        private void addFilePart(String key, File value) throws IOException {
+            String mimeType = HttpParameter.getMimeTypeFromExtension(value);
             mFilePart.add(new FilePartEntity(key, value, mimeType));
         }
 
-        private boolean isNoPart() {
-            if (mFormDataPart.size() == 0 && mFilePart.size() == 0) return true;
-            return false;
+        // file パート（1パート分）の 登録を行う
+        private void addFilePart(String key, File value, String mimeType) throws IOException {
+            mFilePart.add(new FilePartEntity(key, value, mimeType));
+        }
+
+        private boolean hasEntity() {
+            return (mFormDataPart.size() >= 1 || mFilePart.size() >= 1);
         }
 
         private class FilePartEntity {
@@ -707,22 +753,6 @@ public class HttpRequest {
             }
         }
 
-    }
-
-    /**
-     * ファイルの拡張子から そのファイルの mimeTypeを返す
-     * MimeTypeMap.getFileExtensionFromUrl(url) は日本語や 空白の入ったファイル名ではうまく動作しないので、
-     * 拡張子のみを抜き出してから、呼び出す
-     * @param path ファイルパス
-     * @return mimeType
-     */
-    public static String getMimeTypeFromExtension(String path) {
-        //MimeTypeMap.getFileExtensionFromUrl(url) は日本語や 空白の入ったファイル名ではうまく動作しないので、自分で拡張子のみを取得する
-        File file = new File(path);
-        String filename = file.getName();
-        int ptr = filename.lastIndexOf(".");
-        String ext = (ptr >= 0 ? filename.substring(ptr+1) : "");
-        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.toLowerCase());
     }
 
 }
