@@ -1,6 +1,5 @@
 package com.insprout.okblib.network;
 
-import android.annotation.SuppressLint;
 import android.os.Build;
 import android.util.Base64;
 
@@ -20,6 +19,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
@@ -80,12 +80,11 @@ public class HttpRequest {
     private final static int COUNT_CHECK_INTERRUPT = (1024 * 1024) / BUFF_SIZE;
 
 
-    private HttpURLConnection mUrlCon = null;
-    private Map<String, String> mExtraHeaders = new HashMap<>();
     private int mMethodType = METHOD_GET;
     private String mRequestUrl;
-    private String mRequestQuery = null;
+    private List<HttpParameter> mRequestQueryParams = null;
     private IRequestBody mRequestBody = null;
+    private Map<String, String> mExtraHeaders = new HashMap<>();
     private String mUserAgent = null;
     private String mUserPassword = null;
 
@@ -108,12 +107,12 @@ public class HttpRequest {
         if (!hasRequestBody()) {
             // GETなどの場合は Fileは無視する
             // paramsは uriに queryStringとして付加する
-            mRequestQuery  = HttpParameter.toQueryString(params, ENCODING);
+            mRequestQueryParams = params;
             mRequestBody = null;
 
         } else if (HttpParameter.hasFile(params)) {
-            // 送信するFileが指定されている場合は、multipart用の 送信データを作成する
-            mRequestQuery = null;
+            // 送信データにFileが含まれている場合は、multipart用の 送信データを作成する
+            mRequestQueryParams = null;
             try {
                 mRequestBody = new MultipartEntity(params);
 
@@ -123,7 +122,7 @@ public class HttpRequest {
 
         } else {
             // paramsのみの場合は、x-www-form-urlencodedで送信する
-            mRequestQuery = null;
+            mRequestQueryParams = null;
             mRequestBody = new RequestBodyEntity(params);
         }
 
@@ -133,7 +132,7 @@ public class HttpRequest {
     // request bodyで 任意のデータを送信する場合
     // これ以前にsetContent()メソッドで設定した内容は上書きされる
     public HttpRequest setContent(byte[] requestBody, String contentType) {
-        mRequestQuery = null;
+        mRequestQueryParams = null;
         mRequestBody = new RequestBodyEntity(requestBody, contentType);
         return this;
     }
@@ -195,6 +194,17 @@ public class HttpRequest {
         }
     }
 
+    private URL getURL(String spec, List<HttpParameter> params) throws MalformedURLException {
+        URL url;
+        url = new URL(spec);
+        if (params != null && !params.isEmpty()) {
+            // 追加の queryパラメータが指定されている場合は、それを付加してURLオブジェクトを作成する
+            // 最初のURLオブジェクトは、既にqueryパートが存在するかどうかの判別に使用する
+            url = new URL(spec + (url.getQuery() != null ? "&" : "?") + HttpParameter.toQueryString(params, ENCODING));
+        }
+        return url;
+    }
+
     public void abort() {
         // HttpURLConnectionの場合、Thread.interrupt() で 割り込み可能なので、Abort処理は行わない
         // AndroidHttpClient通信版との互換性のため、メソッドはのこしておく
@@ -219,31 +229,26 @@ public class HttpRequest {
     }
 
     private HttpResponse executeRequest(String requestUrl, File... output) {
+        HttpURLConnection urlConnection = null;
         int responseCode = 0;
         String responseBody = "";                   // レスポンスを 文字列で返す際の変数
-        File responseFile = null;                   // レスポンスをFileで返す際の出力先ファイル
         byte[] responseBytes = null;                // レスポンスを バイト配列で返す際の保存先
         InputStream responseStream = null;          // 受信したデータ(レスポンス)の input stream
         DataOutputStream outDataStream = null;      // 受信したデータを 書き出す output stream
         Map<String, String> responseHeaders = null;
+        File responseFile = (output.length >= 1 ? output[0] : null);    // レスポンスをFileで返す際の出力先ファイル
 
         try {
-            URL url;
-            // http requestの レスポンス出力先にファイルが指定されている場合
-            if (output.length >= 1) responseFile = output[0];
-
-            String urlWithQuery = requestUrl;
-            if (mRequestQuery != null && !mRequestQuery.isEmpty()) urlWithQuery += (requestUrl.indexOf("?")<0 ? "?" : "&") + mRequestQuery;
-            url = new URL(urlWithQuery);
+            URL url = getURL(requestUrl, mRequestQueryParams);
             if (mUserPassword == null) {
                 // ユーザ/パスワードが未設定の場合は URLからの取得も試みる
                 mUserPassword = url.getUserInfo();
             }
-            mUrlCon = (HttpURLConnection)url.openConnection();
+            urlConnection = (HttpURLConnection)url.openConnection();
 
-            if (IGNORE_CERTIFICATE_SSL && mUrlCon instanceof HttpsURLConnection) {
+            if (IGNORE_CERTIFICATE_SSL && urlConnection instanceof HttpsURLConnection) {
                 // 自己署名証明書（オレオレ証明書）サイトに接続させるためのパッチ
-                ignoreCertificateSsl((HttpsURLConnection)mUrlCon);
+                ignoreCertificateSsl((HttpsURLConnection)urlConnection);
             }
 
             // タイムアウト時間の設定
@@ -256,34 +261,34 @@ public class HttpRequest {
                     mTimeoutMilliSec = TIMEOUT_MILLI_SEC;
                 }
             }
-            mUrlCon.setReadTimeout(mTimeoutMilliSec);
-            mUrlCon.setConnectTimeout(TIMEOUT_CONNECTION_MILLI_SEC);
+            urlConnection.setReadTimeout(mTimeoutMilliSec);
+            urlConnection.setConnectTimeout(TIMEOUT_CONNECTION_MILLI_SEC);
 
             // User-Agent設定
-            if (mUserAgent != null) mUrlCon.setRequestProperty("User-Agent", mUserAgent);
+            if (mUserAgent != null) urlConnection.setRequestProperty("User-Agent", mUserAgent);
 
-            mUrlCon.setRequestMethod(toMethodString(mMethodType));
+            urlConnection.setRequestMethod(toMethodString(mMethodType));
             for(Map.Entry<String, String> header : mExtraHeaders.entrySet()) {
-                mUrlCon.setRequestProperty(header.getKey(), (header.getValue() != null ? header.getValue() : ""));
+                urlConnection.setRequestProperty(header.getKey(), (header.getValue() != null ? header.getValue() : ""));
             }
 
             if (mUserPassword != null) {
-                mUrlCon.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(mUserPassword.getBytes(), Base64.NO_WRAP));
+                urlConnection.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(mUserPassword.getBytes(), Base64.NO_WRAP));
             }
-            mUrlCon.setRequestProperty( "Accept-Encoding", "" );
+            urlConnection.setRequestProperty( "Accept-Encoding", "" );
             // httpUrlConnectionで EOFExceptionが 発生する問題に対応
-            if (Build.VERSION.SDK_INT > 13) mUrlCon.setRequestProperty("Connection", "close");
+            if (Build.VERSION.SDK_INT > 13) urlConnection.setRequestProperty("Connection", "close");
 
             if (mRequestBody != null) {
-                mUrlCon.setRequestProperty("Content-Type", mRequestBody.getContentType());
+                urlConnection.setRequestProperty("Content-Type", mRequestBody.getContentType());
                 // 送信データサイズをセット
-                mUrlCon.setFixedLengthStreamingMode(mRequestBody.getContentLength());
+                urlConnection.setFixedLengthStreamingMode(mRequestBody.getContentLength());
                 // 出力を行うように設定
-                mUrlCon.setDoOutput(true);
+                urlConnection.setDoOutput(true);
             }
 
             // httpレスポンスを受け取るように設定
-            mUrlCon.setDoInput(true);
+            urlConnection.setDoInput(true);
 
 
             // http リクエスト コネクション
@@ -293,7 +298,7 @@ public class HttpRequest {
                 try {
                     // コネクションの確立を試みる
                     tryCount--;
-                    mUrlCon.connect();
+                    urlConnection.connect();
                     connected = true;
 
                 } catch (SocketTimeoutException e) {
@@ -305,7 +310,7 @@ public class HttpRequest {
 
             // 送信するデータがあれば送る
             if (mRequestBody != null) {
-                outDataStream = new DataOutputStream(mUrlCon.getOutputStream());
+                outDataStream = new DataOutputStream(urlConnection.getOutputStream());
                 // multipartデータを request bodyで 送信する
                 mRequestBody.writeTo(outDataStream);
                 outDataStream.flush();
@@ -315,7 +320,7 @@ public class HttpRequest {
 
             // HTTPリクエストの レスポンスを 受け取る
             try {
-                responseCode = mUrlCon.getResponseCode();
+                responseCode = urlConnection.getResponseCode();
             }
             catch (IOException e) {
                 // apiサーバが status 401の際に 「WWW-Authenticate: ～」をつけてレスポンスを返さない件に対応
@@ -330,16 +335,16 @@ public class HttpRequest {
             }
             // レスポンスヘッダを取得する
             responseHeaders = new HashMap<>();
-            for (Map.Entry<String, List<String>> entry : mUrlCon.getHeaderFields().entrySet()) {
+            for (Map.Entry<String, List<String>> entry : urlConnection.getHeaderFields().entrySet()) {
                 List<String> values = entry.getValue();
                 responseHeaders.put(entry.getKey(), (values.size() == 0 ? "" : values.get(0)));
             }
 
             // レスポンスの入力ストリームを取得
             if (responseCode >= 400 && responseCode <= 599) {
-                responseStream = mUrlCon.getErrorStream();
+                responseStream = urlConnection.getErrorStream();
             } else {
-                responseStream = mUrlCon.getInputStream();
+                responseStream = urlConnection.getInputStream();
             }
 
             // 指定によって、responseの出力形式を切り替える
@@ -354,22 +359,16 @@ public class HttpRequest {
                 responseBytes = toBytes(responseStream);
             }
 
-        } catch (InterruptedException e) {
-            responseCode = STATUS_INTERRUPTED;
-
-        } catch (SocketException e) {
+        } catch (InterruptedException | SocketException e) {
             responseCode = STATUS_INTERRUPTED;
 
         } catch (SocketTimeoutException e) {
             responseCode = STATUS_ERROR_TIMEOUT;
 
-        } catch (SSLHandshakeException e) {
-            responseCode = STATUS_ERROR_INTERNAL;
-
         } catch (SecurityException e ) {
             responseCode = STATUS_ERROR_PERMISSION;
 
-        } catch (FileNotFoundException e ) {
+        } catch (FileNotFoundException | SSLHandshakeException e) {
             responseCode = STATUS_ERROR_INTERNAL;
 
         } catch (IOException e ) {
@@ -379,8 +378,8 @@ public class HttpRequest {
             responseCode = STATUS_ERROR_INTERNAL;
 
         } finally {
-            if (mUrlCon != null) mUrlCon.disconnect();
-            mUrlCon = null;
+            if (urlConnection != null) urlConnection.disconnect();
+            urlConnection = null;
             try {
                 if (outDataStream != null) outDataStream.close();
             } catch (IOException e) {
@@ -545,9 +544,9 @@ public class HttpRequest {
 
     private interface IRequestBody {
 
-        int getContentLength();
-
         String getContentType();
+
+        int getContentLength();
 
         void writeTo(OutputStream outStream) throws IOException, InterruptedException;
     }
@@ -560,24 +559,26 @@ public class HttpRequest {
         private byte[] mRequestBody;
         private String mContentType;
 
-        public RequestBodyEntity(byte[] requestBody, String contentType) {
-            mRequestBody = requestBody;
-            mContentType = (contentType != null ? contentType : CONTENT_TYPE_OCTET_STREAM);
-        }
-
+        // form-urlencoded用 コンストラクタ
         public RequestBodyEntity(List<HttpParameter> params) {
             mRequestBody = HttpParameter.getBytes(params, ENCODING);
             mContentType = CONTENT_TYPE_WWW_FORM;
         }
 
-        @Override
-        public int getContentLength() {
-            return (mRequestBody != null ? mRequestBody.length : 0);
+        // rawデータ用 コンストラクタ
+        public RequestBodyEntity(byte[] requestBody, String contentType) {
+            mRequestBody = requestBody;
+            mContentType = (contentType != null ? contentType : CONTENT_TYPE_OCTET_STREAM);
         }
 
         @Override
         public String getContentType() {
             return mContentType;
+        }
+
+        @Override
+        public int getContentLength() {
+            return (mRequestBody != null ? mRequestBody.length : 0);
         }
 
         @Override
@@ -597,17 +598,14 @@ public class HttpRequest {
         private List<FilePartEntity> mFilePart = new ArrayList<>();
 
 
-        public MultipartEntity() throws UnsupportedEncodingException {
+        public MultipartEntity(List<HttpParameter> params) throws UnsupportedEncodingException, IOException {
             // バウンダリー文字列生成
             mBoundary = UUID.randomUUID().toString();
             // 終端用バウンダリー設定
             mBoundaryStart = "--" + mBoundary + "\r\n";
             mBoundaryEnd = "--" + mBoundary + "--\r\n";
             mBytesBoundaryEnd = mBoundaryEnd.getBytes(ENCODING);
-        }
 
-        public MultipartEntity(List<HttpParameter> params) throws UnsupportedEncodingException, IOException {
-            this();
             addEntities(params);
         }
 
@@ -645,6 +643,7 @@ public class HttpRequest {
             outStream.write(mBytesBoundaryEnd);
         }
 
+
         public void addEntities(List<HttpParameter> params) throws IOException {
             if (params == null) return;
             for (HttpParameter param : params) {
@@ -654,44 +653,27 @@ public class HttpRequest {
 
         public void addEntity(HttpParameter param) throws IOException {
             if (param == null) return;
+
             if (param.hasFile()) {
-                addFilePart(param);
+                // form data パートの登録を行う
+                mFilePart.add(new FilePartEntity(param.getName(), param.getFile(), param.getMimeType()));
+
             } else {
-                addFormDataPart(param);
+                // form data パートの登録を行う
+                // keyが指定されているか確認する
+                String key = param.getName();
+                if (key == null || key.length() == 0) return;
+
+                String value = param.getValue();
+                mFormDataPart.write(mBoundaryStart.getBytes(ENCODING));
+                mFormDataPart.write(("Content-Disposition: form-data; name=\"" + key + "\"\r\n").getBytes(ENCODING));
+                mFormDataPart.write(("Content-Type: text/plain; charset=" + ENCODING + "\r\n").getBytes(ENCODING));
+                mFormDataPart.write("Content-Transfer-Encoding: 8bit\r\n\r\n".getBytes(ENCODING));
+                mFormDataPart.write((value!=null ? value : "").getBytes(ENCODING));
+                mFormDataPart.write(("\r\n").getBytes(ENCODING));
             }
         }
 
-
-        private void addFormDataPart(HttpParameter param) throws IOException {
-            if (param != null) addFormDataPart(param.getName(), param.getValue());
-        }
-
-        // form data パート（1パート分）の 登録を行う
-        private void addFormDataPart(String key, String value) throws IOException {
-            // keyが指定されているか確認する
-            if (key == null || key.length() == 0) return;
-
-            mFormDataPart.write(mBoundaryStart.getBytes(ENCODING));
-            mFormDataPart.write(("Content-Disposition: form-data; name=\"" + key + "\"\r\n").getBytes(ENCODING));
-            mFormDataPart.write(("Content-Type: text/plain; charset=" + ENCODING + "\r\n").getBytes(ENCODING));
-            mFormDataPart.write("Content-Transfer-Encoding: 8bit\r\n\r\n".getBytes(ENCODING));
-            mFormDataPart.write((value!=null ? value : "").getBytes(ENCODING));
-            mFormDataPart.write(("\r\n").getBytes(ENCODING));
-        }
-
-
-        // file パート（1パート分）の 登録を行う
-        private void addFilePart(HttpParameter param) throws IOException {
-            if (param != null && param.hasFile()) {
-                addFilePart(param.getName(), param.getFile(), param.getMimeType());
-            }
-        }
-
-
-        // file パート（1パート分）の 登録を行う
-        private void addFilePart(String key, File value, String mimeType) throws IOException {
-            mFilePart.add(new FilePartEntity(key, value, mimeType));
-        }
 
         private boolean hasEntity() {
             return (mFormDataPart.size() >= 1 || mFilePart.size() >= 1);
