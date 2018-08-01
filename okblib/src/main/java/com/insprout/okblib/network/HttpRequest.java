@@ -56,8 +56,6 @@ public class HttpRequest {
     private final static String RESPONSE_HEADER_LOCATION = "Location";
 
 
-    private final static boolean IGNORE_CERTIFICATE_SSL = true;      // 自己署名証明書（オレオレ証明書）サイト接続フラグ
-
     // ネットワーク通信用 定数
     public final static int METHOD_GET = 0;
     public final static int METHOD_POST = 1;
@@ -87,8 +85,8 @@ public class HttpRequest {
     private Map<String, String> mExtraHeaders = new HashMap<>();
     private String mUserAgent = null;
     private String mUserPassword = null;
-
     private int mTimeoutMilliSec = -1;
+    private boolean mIgnoreCertificateSsl = false;              // 自己署名証明書（オレオレ証明書）サイト接続フラグ
 
 
     public HttpRequest(int method, String url) {
@@ -158,6 +156,11 @@ public class HttpRequest {
 
     public HttpRequest addRequestHeaders(Map<String, String> extraHeaders) {
         if (extraHeaders != null) mExtraHeaders.putAll(extraHeaders);
+        return this;
+    }
+
+    public HttpRequest setIgnoreCertificateSsl(boolean ignore) {
+        mIgnoreCertificateSsl = ignore;
         return this;
     }
 
@@ -261,7 +264,7 @@ public class HttpRequest {
             }
             urlConnection = (HttpURLConnection)url.openConnection();
 
-            if (IGNORE_CERTIFICATE_SSL && urlConnection instanceof HttpsURLConnection) {
+            if (mIgnoreCertificateSsl && urlConnection instanceof HttpsURLConnection) {
                 // 自己署名証明書（オレオレ証明書）サイトに接続させるためのパッチ
                 ignoreCertificateSsl((HttpsURLConnection)urlConnection);
             }
@@ -374,13 +377,7 @@ public class HttpRequest {
         } catch (SecurityException e ) {
             responseCode = STATUS_ERROR_PERMISSION;
 
-        } catch (FileNotFoundException | SSLHandshakeException e) {
-            responseCode = STATUS_ERROR_INTERNAL;
-
         } catch (IOException e ) {
-            responseCode = STATUS_ERROR_INTERNAL;
-
-        } catch (Exception e ) {
             responseCode = STATUS_ERROR_INTERNAL;
 
         } finally {
@@ -511,7 +508,8 @@ public class HttpRequest {
         }
     }
 
-    private void ignoreCertificateSsl(HttpsURLConnection httpsConnection) throws NoSuchAlgorithmException, KeyManagementException {
+    // 自己署名証明書（オレオレ証明書）サイトに接続させるためのパッチ処理
+    private void ignoreCertificateSsl(HttpsURLConnection httpsConnection)  {
         // 証明書チェーンの検証をスキップ
         KeyManager[] keyManagers = null;
         TrustManager[] transManagers = {
@@ -527,19 +525,25 @@ public class HttpRequest {
                     }
                 }
         };
-        SSLContext sslcontext = SSLContext.getInstance("SSL");
-        sslcontext.init(keyManagers, transManagers, new SecureRandom());
 
-        // 証明書に書かれているCommon NameとURLのホスト名が一致していることの検証をスキップ
-        httpsConnection.setHostnameVerifier(new HostnameVerifier() {
-            @Override
-            public boolean verify(String hostname, SSLSession session) {
-                return true;
-            }
-        });
+        try {
+            SSLContext sslcontext = SSLContext.getInstance("SSL");
+            sslcontext.init(keyManagers, transManagers, new SecureRandom());
 
-        // 自己署名証明書を エラーとしない SSLSocketFactoryを設定する
-        httpsConnection.setSSLSocketFactory(sslcontext.getSocketFactory());
+            // 証明書に書かれているCommon NameとURLのホスト名が一致していることの検証をスキップ
+            httpsConnection.setHostnameVerifier(new HostnameVerifier() {
+                @Override
+                public boolean verify(String hostname, SSLSession session) {
+                    return true;
+                }
+            });
+
+            // 自己署名証明書を エラーとしない SSLSocketFactoryを設定する
+            httpsConnection.setSSLSocketFactory(sslcontext.getSocketFactory());
+
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            //e.printStackTrace();
+        }
     }
 
 

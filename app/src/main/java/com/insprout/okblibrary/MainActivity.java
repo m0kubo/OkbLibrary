@@ -184,7 +184,7 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
                 }
                 new DialogUi.Builder(MainActivity.this).setTitle("通信結果").setMessage(msg).setPositiveButton().show();
             }
-        }).execute();
+        }).setIgnoreCertificateSsl(true).execute();
     }
 
 

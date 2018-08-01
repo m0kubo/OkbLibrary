@@ -47,6 +47,11 @@ public class HttpRequestTask extends AsyncTask<File, Void, HttpResponse> {
         return this;
     }
 
+    public HttpRequestTask setIgnoreCertificateSsl(boolean ignore) {
+        mApiRequest.setIgnoreCertificateSsl(ignore);
+        return this;
+    }
+
     public HttpRequestTask addRequestHeaders(Map<String, String> extraHeaders) {
         mApiRequest.addRequestHeaders(extraHeaders);
         return this;
