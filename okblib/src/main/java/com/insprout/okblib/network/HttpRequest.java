@@ -205,6 +205,21 @@ public class HttpRequest {
         return url;
     }
 
+    // タイムアウト時間の設定
+    private int getTimeout(File... output) {
+        // TIMEOUT時間が定されていれば、その時間を使用する
+        if (mTimeoutMilliSec >= 0) {
+            return mTimeoutMilliSec;
+
+        } else if (output.length >= 1 && output[0] != null) {
+            // 受信に ファイルが指定されている場合は、Socket readの TIMEOUT時間を長くする
+            return TIMEOUT_FILE_TRANSFER;
+
+        } else {
+            return TIMEOUT_MILLI_SEC;
+        }
+    }
+
     public void abort() {
         // HttpURLConnectionの場合、Thread.interrupt() で 割り込み可能なので、Abort処理は行わない
         // AndroidHttpClient通信版との互換性のため、メソッドはのこしておく
@@ -252,16 +267,7 @@ public class HttpRequest {
             }
 
             // タイムアウト時間の設定
-            if (mTimeoutMilliSec < 0) {
-                // TIMEOUT時間が明示的に指定されていなければ、デフォルトの時間を使用する
-                if (responseFile != null) {
-                    // 受信に ファイルが指定されている場合は、Socket readの TIMEOUT時間を長く設定する
-                    mTimeoutMilliSec = TIMEOUT_FILE_TRANSFER;
-                } else {
-                    mTimeoutMilliSec = TIMEOUT_MILLI_SEC;
-                }
-            }
-            urlConnection.setReadTimeout(mTimeoutMilliSec);
+            urlConnection.setReadTimeout(getTimeout(output));
             urlConnection.setConnectTimeout(TIMEOUT_CONNECTION_MILLI_SEC);
 
             // User-Agent設定
