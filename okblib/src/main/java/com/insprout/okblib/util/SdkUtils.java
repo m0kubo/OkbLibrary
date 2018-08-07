@@ -8,13 +8,9 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.AssetManager;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -188,37 +184,6 @@ public class SdkUtils {
             // Resources経由の Drawable取得は、API level 21以降は 非推奨
             return context.getResources().getDrawable(resourceId);
         }
-    }
-
-    /**
-     * asset内のテキストファイルから テキストを取得する
-     * @param context コンテキスト
-     * @param assetFile assetsフォルダの ファイル名
-     * @return 読みだされたテキスト (ファイルが空でなければ、末尾は必ず改行が付く)
-     */
-    public static String getAssetText(Context context, String assetFile) {
-        BufferedReader bufferedReader = null;
-        StringBuilder builder = new StringBuilder();
-
-        try {
-            AssetManager assetManager = context.getResources().getAssets();
-            bufferedReader = new BufferedReader(new InputStreamReader(assetManager.open(assetFile)));
-            String line;
-            while((line = bufferedReader.readLine()) != null) {
-                builder.append(line).append("\n");
-            }
-
-        } catch (IOException e) {
-            return null;
-
-        } finally {
-            try {
-                if (bufferedReader != null) bufferedReader.close();
-            } catch (IOException ignored) {
-            }
-        }
-
-        return builder.toString();
     }
 
 

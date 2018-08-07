@@ -103,6 +103,10 @@ public class HttpParameter {
         return builder.toString();
     }
 
+    public static String toQueryString(String name, String value) {
+        return toQueryString(name, value, DEFAULT_CHARSET);
+    }
+
     public static String toQueryString(String name, String value, String charset) {
         if (name == null || name.isEmpty()) return "";
         return encode(name, charset) + "=" + encode(value, charset);

@@ -11,7 +11,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,6 +21,8 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
@@ -39,7 +40,6 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -197,30 +197,25 @@ public class HttpRequest {
         }
     }
 
-    private URL getURL(String spec, List<HttpParameter> params) throws MalformedURLException {
-        URL url;
-        url = new URL(spec);
-        if (params != null && !params.isEmpty()) {
-            // 追加の queryパラメータが指定されている場合は、それを付加してURLオブジェクトを作成する
-            // 最初のURLオブジェクトは、既にqueryパートが存在するかどうかの判別に使用する
-            url = new URL(spec + (url.getQuery() != null ? "&" : "?") + HttpParameter.toQueryString(params, ENCODING));
-        }
-        return url;
-    }
 
     // タイムアウト時間の設定
-    private int getTimeout(File... output) {
+    private int selectTimeout(File output) {
         // TIMEOUT時間が定されていれば、その時間を使用する
         if (mTimeoutMilliSec >= 0) {
             return mTimeoutMilliSec;
 
-        } else if (output.length >= 1 && output[0] != null) {
-            // 受信に ファイルが指定されている場合は、Socket readの TIMEOUT時間を長くする
+        } else if (output != null) {
+            // ファイル受信用のデフォルトTIMEOUT (長めの時間)
             return TIMEOUT_FILE_TRANSFER;
 
         } else {
+            // デフォルトのTIMEOUT時間
             return TIMEOUT_MILLI_SEC;
         }
+    }
+
+    private boolean isErrorStatus(int responseCode) {
+        return (responseCode >= 400 && responseCode <= 599 || responseCode <= 0);
     }
 
     public void abort() {
@@ -233,56 +228,68 @@ public class HttpRequest {
             // リクエストURLが未指定の場合は 400 Bad Requestを返しておく
             return new HttpResponse(400, null, null, null);
         }
-        HttpResponse response = executeRequest(mRequestUrl, output);
+
+        boolean binaryData = false;
+        File responseFile = null;
+        if (output.length >= 1) {
+            // 出力先ファイルが指定されていれば バイナリーデータとみなす
+            binaryData = true;
+            responseFile = output[0];    // 出力先がnullの場合もある。(nullならファイルでなく メモリー中のバイト列データとして返す)
+        }
+        HttpResponse response = executeRequest(mRequestUrl, binaryData, responseFile);
 
         // status 307 Temporary Redirectに対応
         // 302 / 303は HttpURLConnectionで対応されている
         if (response.getHttpStatus() == 307 || response.getHttpStatus() == 308) {
             String redirectUrl = response.getResponseHeader(RESPONSE_HEADER_LOCATION);
             if (redirectUrl != null && !redirectUrl.isEmpty()) {
-                response = executeRequest(redirectUrl, output);
+                response = executeRequest(redirectUrl, binaryData, responseFile);
             }
         }
         return response;
     }
 
-    private HttpResponse executeRequest(String requestUrl, File... output) {
+    private HttpResponse executeRequest(String requestUrl, boolean binaryData, File responseFile) {
         HttpURLConnection urlConnection = null;
         int responseCode = 0;
         String responseBody = "";                   // レスポンスを 文字列で返す際の変数
         byte[] responseBytes = null;                // レスポンスを バイト配列で返す際の保存先
-        InputStream responseStream = null;          // 受信したデータ(レスポンス)の input stream
-        DataOutputStream outDataStream = null;      // 受信したデータを 書き出す output stream
         Map<String, String> responseHeaders = null;
-        File responseFile = (output.length >= 1 ? output[0] : null);    // レスポンスをFileで返す際の出力先ファイル
 
         try {
-            URL url = getURL(requestUrl, mRequestQueryParams);
-            if (mUserPassword == null) {
-                // ユーザ/パスワードが未設定の場合は URLからの取得も試みる
-                mUserPassword = url.getUserInfo();
+            URL url = new URL(requestUrl);
+            // 追加の queryパラメータが指定されている場合は、それを付加してURLオブジェクトを再作成する
+            if (mRequestQueryParams != null && !mRequestQueryParams.isEmpty()) {
+                String queryNew = HttpParameter.toQueryString(mRequestQueryParams, ENCODING);
+                String queryOrg = url.getQuery();
+                if (queryOrg != null && !queryOrg.isEmpty()) {
+                    queryNew = queryOrg + "&" + queryNew;       // urlについていたqueryと別途指定されたパラメータを連結
+                }
+                url = new URI(url.getProtocol(), url.getAuthority(), url.getPath(), queryNew, url.getRef()).toURL();
             }
             urlConnection = (HttpURLConnection)url.openConnection();
-
             if (mIgnoreCertificateSsl && urlConnection instanceof HttpsURLConnection) {
                 // 自己署名証明書（オレオレ証明書）サイトに接続させるためのパッチ
                 ignoreCertificateSsl((HttpsURLConnection)urlConnection);
             }
 
+            // httpメソッド設定
+            urlConnection.setRequestMethod(toMethodString(mMethodType));
+
             // タイムアウト時間の設定
-            urlConnection.setReadTimeout(getTimeout(output));
+            urlConnection.setReadTimeout(selectTimeout(responseFile));
             urlConnection.setConnectTimeout(TIMEOUT_CONNECTION_MILLI_SEC);
 
             // User-Agent設定
             if (mUserAgent != null) urlConnection.setRequestProperty("User-Agent", mUserAgent);
-
-            urlConnection.setRequestMethod(toMethodString(mMethodType));
-            for(Map.Entry<String, String> header : mExtraHeaders.entrySet()) {
-                urlConnection.setRequestProperty(header.getKey(), (header.getValue() != null ? header.getValue() : ""));
+            // Basic認証設定
+            String userPassword = (mUserPassword != null ? mUserPassword : url.getUserInfo());  // ユーザ/パスワードが未設定の場合は URLからの取得も試みる
+            if (userPassword != null) {
+                urlConnection.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(userPassword.getBytes(), Base64.NO_WRAP));
             }
 
-            if (mUserPassword != null) {
-                urlConnection.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(mUserPassword.getBytes(), Base64.NO_WRAP));
+            for(Map.Entry<String, String> header : mExtraHeaders.entrySet()) {
+                urlConnection.setRequestProperty(header.getKey(), (header.getValue() != null ? header.getValue() : ""));
             }
             urlConnection.setRequestProperty( "Accept-Encoding", "" );
             // httpUrlConnectionで EOFExceptionが 発生する問題に対応
@@ -319,19 +326,19 @@ public class HttpRequest {
 
             // 送信するデータがあれば送る
             if (mRequestBody != null) {
-                outDataStream = new DataOutputStream(urlConnection.getOutputStream());
-                // multipartデータを request bodyで 送信する
-                mRequestBody.writeTo(outDataStream);
-                outDataStream.flush();
-                outDataStream.close();
-                outDataStream = null;
+                // try-with-resource構文で close処理を簡略
+                try (DataOutputStream outputStream = new DataOutputStream(urlConnection.getOutputStream())) {
+                    // request bodyを送信
+                    mRequestBody.writeTo(outputStream);
+                    outputStream.flush();
+                }
             }
 
             // HTTPリクエストの レスポンスを 受け取る
             try {
                 responseCode = urlConnection.getResponseCode();
-            }
-            catch (IOException e) {
+
+            } catch (IOException e) {
                 // apiサーバが status 401の際に 「WWW-Authenticate: ～」をつけてレスポンスを返さない件に対応
                 // 認証系のエラーの場合、401エラーとして継続してみる
                 // 別のエラーの場合は、上位のエラーハンドラーにまかせる
@@ -346,26 +353,22 @@ public class HttpRequest {
             responseHeaders = new HashMap<>();
             for (Map.Entry<String, List<String>> entry : urlConnection.getHeaderFields().entrySet()) {
                 List<String> values = entry.getValue();
-                responseHeaders.put(entry.getKey(), (values.size() == 0 ? "" : values.get(0)));
+                responseHeaders.put(entry.getKey(), (values.isEmpty() ? "" : values.get(0)));
             }
 
             // レスポンスの入力ストリームを取得
-            if (responseCode >= 400 && responseCode <= 599) {
-                responseStream = urlConnection.getErrorStream();
-            } else {
-                responseStream = urlConnection.getInputStream();
-            }
-
-            // 指定によって、responseの出力形式を切り替える
-            if (output.length == 0) {
-                // responseBodyとして 返す（文字列）
-                responseBody = toString(responseStream);
-            } else if (responseFile != null) {
-                // 出力先に Fileが指定されていた場合は、そこに書き出す
-                toFile(responseFile, responseStream);
-            } else {
-                // rawデータを メモリで返す（バイト配列）
-                responseBytes = toBytes(responseStream);
+            try (InputStream responseStream = (isErrorStatus(responseCode) ? urlConnection.getErrorStream() : urlConnection.getInputStream())) {
+                // 指定によって、responseの出力形式を切り替える
+                if (!binaryData) {
+                    // responseBodyとして 返す（文字列）
+                    responseBody = toString(responseStream);
+                } else if (responseFile != null) {
+                    // 出力先に Fileが指定されていた場合は、そこに書き出す
+                    toFile(responseFile, responseStream);
+                } else {
+                    // rawデータを メモリで返す（バイト配列）
+                    responseBytes = toBytes(responseStream);
+                }
             }
 
         } catch (InterruptedException | SocketException e) {
@@ -377,23 +380,15 @@ public class HttpRequest {
         } catch (SecurityException e ) {
             responseCode = STATUS_ERROR_PERMISSION;
 
-        } catch (IOException e ) {
+        } catch(MalformedURLException | URISyntaxException e) {
             responseCode = STATUS_ERROR_INTERNAL;
+
+        } catch (IOException e ) {
+            responseCode = STATUS_ERROR_FILEIO;
 
         } finally {
             if (urlConnection != null) urlConnection.disconnect();
-            urlConnection = null;
-            try {
-                if (outDataStream != null) outDataStream.close();
-            } catch (IOException e) {
-                // close処理が完了しなくても無視する
-            }
-            try {
-                if (responseStream != null) responseStream.close();
-            } catch (IOException e) {
-                // close処理が完了しなくても無視する
-            }
-            if (responseCode != 200) {
+            if (isErrorStatus(responseCode)) {
                 // 失敗した受信ファイルを削除
                 if (responseFile != null && responseFile.exists()) responseFile.delete();
             }
@@ -404,10 +399,9 @@ public class HttpRequest {
 
     private String toString(InputStream is) throws InterruptedException, IOException {
         char[] buffer = new char[ BUFF_SIZE ];
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is, ENCODING), BUFF_SIZE);      // BufferedReaderのデフォルトバッファサイズは 8k
         StringBuilder sb = new StringBuilder();
 
-        try {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, ENCODING), BUFF_SIZE)) {
             int count = 0;
             int size;
             while (0 <= (size = reader.read(buffer))) {
@@ -419,28 +413,16 @@ public class HttpRequest {
                     count = 0;
                 }
             }
-
-        } finally {
-            try {
-                reader.close();
-            } catch (IOException e) {
-                // close処理が完了しなくても無視する
-            }
         }
-
         return sb.toString();
     }
 
     private byte[] toBytes(InputStream is) throws InterruptedException, IOException {
         byte[] buffer = new byte[ BUFF_SIZE ];
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        BufferedInputStream inputStream = null;
-        OutputStream outputStream = null;
 
-        try {
-            inputStream = new BufferedInputStream(is, BUFF_SIZE);
-            outputStream = new BufferedOutputStream(bytes);
-
+        try (BufferedInputStream inputStream = new BufferedInputStream(is, BUFF_SIZE);
+            OutputStream outputStream = new BufferedOutputStream(bytes)) {
             int count = 0;
             int size;
             while ((size = inputStream.read(buffer, 0, BUFF_SIZE)) != -1) {
@@ -453,32 +435,16 @@ public class HttpRequest {
                 }
             }
             outputStream.flush();
-
-        } finally {
-            try {
-                if (inputStream != null) inputStream.close();
-            } catch (IOException e) {
-                // close処理が完了しなくても無視する
-            }
-            try {
-                if (outputStream != null) outputStream.close();
-            } catch (IOException e) {
-                // close処理が完了しなくても無視する
-            }
         }
-
         return bytes.toByteArray();
     }
 
     private void toFile(File file, InputStream is) throws InterruptedException, IOException, SecurityException {
         // 出力先に Fileが指定されていた場合は、そこに書き出す
         byte[] buffer = new byte[ BUFF_SIZE ];
-        DataInputStream inResStream = null;
-        FileOutputStream outResStream = null;
 
-        try {
-            inResStream = new DataInputStream(is);
-            outResStream = new FileOutputStream(file);
+        try (DataInputStream inResStream = new DataInputStream(is);
+            FileOutputStream outResStream = new FileOutputStream(file)) {
 
             int count = 0;
             int size;
@@ -490,20 +456,6 @@ public class HttpRequest {
                     Thread.sleep(0, 1);
                     count = 0;
                 }
-            }
-            inResStream.close();
-            inResStream = null;
-
-        } finally {
-            try {
-                if (outResStream != null) outResStream.close();
-            } catch (IOException e) {
-                // close処理が完了しなくても無視する
-            }
-            try {
-                if (inResStream != null) inResStream.close();
-            } catch (IOException e) {
-                // close処理が完了しなくても無視する
             }
         }
     }
@@ -593,7 +545,7 @@ public class HttpRequest {
 
         @Override
         public void writeTo(OutputStream outStream) throws IOException, InterruptedException {
-            if (outStream != null) outStream.write(mRequestBody);
+            outStream.write(mRequestBody);
         }
     }
 
@@ -637,6 +589,7 @@ public class HttpRequest {
         }
 
         // multipartデータの 出力を行う
+        // OutputStreamの close処理は呼び出し側で行う
         public void writeTo(OutputStream outStream) throws IOException, InterruptedException {
             // 送信するパートが 何もなければ、0サイズの書き込みを行う。終了バウンダリーの書き込みも行わない
             if (!hasEntity()) {
@@ -727,25 +680,21 @@ public class HttpRequest {
                 return mPartHeader.length + mFileLength + mPartBottom.length;
             }
 
+            // OutputStreamの close処理は呼び出し側で行う
             public void writeTo(OutputStream outStream) throws IOException, InterruptedException, SecurityException {
-                // multipartの Fileデータを送信する
-                BufferedInputStream inDataStream = null;
-                byte[] buffer = new byte[ BUFF_SIZE ];
-
                 if (mFile == null) return;
+
+                // multipartの Fileデータを送信する
+                byte[] buffer = new byte[ BUFF_SIZE ];
                 outStream.write(mPartHeader);
-                try {
-                    inDataStream = new BufferedInputStream(new FileInputStream(mFile), BUFF_SIZE);
+                // 送信用ファイルについては、ここで try-with-resourceでcloseする
+                try (BufferedInputStream inDataStream = new BufferedInputStream(new FileInputStream(mFile), BUFF_SIZE)) {
                     int count;
                     while ((count = inDataStream.read(buffer, 0, BUFF_SIZE)) != -1) {
                         outStream.write(buffer, 0, count);
                         // 割り込みを受け付けるように sleep()を呼んでおく
                         Thread.sleep(0, 10);
                     }
-
-                } finally {
-                    // streamの終了処理をおこなっておく
-                    if (inDataStream != null) inDataStream.close();
                 }
                 outStream.write(mPartBottom);
             }

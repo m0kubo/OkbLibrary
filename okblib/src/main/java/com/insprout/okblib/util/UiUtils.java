@@ -1,10 +1,16 @@
 package com.insprout.okblib.util;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 
 /**
  * Created by okubo on 2018/02/05.
@@ -125,6 +131,29 @@ public class UiUtils {
         }
         view.setDrawingCacheEnabled(false);
         return image;
+    }
+
+    /**
+     * asset内のテキストファイルから テキストを取得する
+     * @param context コンテキスト
+     * @param assetFile assetsフォルダの ファイル名
+     * @return 読みだされたテキスト (ファイルが空でなければ、末尾は必ず改行が付く)
+     */
+    public static String getAssetText(Context context, String assetFile) {
+        StringBuilder builder = new StringBuilder();
+        AssetManager assetManager = context.getResources().getAssets();
+
+        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(assetManager.open(assetFile)))) {
+            String line;
+            while((line = bufferedReader.readLine()) != null) {
+                builder.append(line).append("\n");
+            }
+
+        } catch (IOException e) {
+            return null;
+        }
+
+        return builder.toString();
     }
 
 }
