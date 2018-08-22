@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -29,6 +30,37 @@ public class UiUtils {
         View view = activity.findViewById(id);
         if (view != null) {
             view.setEnabled(enabled);
+        }
+    }
+
+    /**
+     * リソースIDで指定されるViewの 有効/無効を設定する
+     * 指定されたViewが ViewGroupだった場合は、子Viewの設定も再帰的に行う
+     * @param activity Viewを表示しているActivity
+     * @param id ViewのリソースID
+     * @param enabled 設定する値 (true/false)
+     */
+    public static void enableViewWithChildren(Activity activity, int id, boolean enabled) {
+        View view = activity.findViewById(id);
+        if (view != null) {
+            enableViewWithChildren(view, enabled);
+        }
+    }
+
+    /**
+     * Viewの 有効/無効を設定する
+     * 指定されたViewが ViewGroupだった場合は、子Viewの設定も再帰的に行う
+     * @param view 設定を行うView
+     * @param enabled 設定する値 (true/false)
+     */
+    private static void enableViewWithChildren(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        // 指定のViewが ViewGroupの場合は、子Viewの設定も再帰的に行う
+        if (view instanceof ViewGroup) {
+            int count = ((ViewGroup)view).getChildCount();
+            for (int i = 0; i < count; i++) {
+                enableViewWithChildren(((ViewGroup)view).getChildAt(i), enabled);
+            }
         }
     }
 
