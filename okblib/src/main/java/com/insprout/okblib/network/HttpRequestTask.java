@@ -47,8 +47,13 @@ public class HttpRequestTask extends AsyncTask<File, Void, HttpResponse> {
         return this;
     }
 
-    public HttpRequestTask setIgnoreCertificateSsl(boolean ignore) {
-        mApiRequest.setIgnoreCertificateSsl(ignore);
+    public HttpRequestTask ignoreCertificateSsl(boolean ignore) {
+        mApiRequest.ignoreCertificateSsl(ignore);
+        return this;
+    }
+
+    public HttpRequestTask enableCookie(boolean enabled) {
+        mApiRequest.enableCookie(enabled);
         return this;
     }
 

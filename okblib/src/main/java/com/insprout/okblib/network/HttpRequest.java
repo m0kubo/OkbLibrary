@@ -1,7 +1,9 @@
 package com.insprout.okblib.network;
 
+import android.annotation.SuppressLint;
 import android.os.Build;
 import android.util.Base64;
+import android.webkit.CookieManager;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -87,6 +89,7 @@ public class HttpRequest {
     private String mUserPassword = null;
     private int mTimeoutMilliSec = -1;
     private boolean mIgnoreCertificateSsl = false;              // 自己署名証明書（オレオレ証明書）サイト接続フラグ
+    private boolean mEnableCookie = false;
 
 
     public HttpRequest(int method, String url) {
@@ -159,7 +162,12 @@ public class HttpRequest {
         return this;
     }
 
-    public HttpRequest setIgnoreCertificateSsl(boolean ignore) {
+    public HttpRequest enableCookie(boolean enabled) {
+        mEnableCookie = enabled;
+        return this;
+    }
+
+    public HttpRequest ignoreCertificateSsl(boolean ignore) {
         mIgnoreCertificateSsl = ignore;
         return this;
     }
@@ -249,12 +257,14 @@ public class HttpRequest {
         return response;
     }
 
+    @SuppressLint("ObsoleteSdkInt")
     private HttpResponse executeRequest(String requestUrl, boolean binaryData, File responseFile) {
         HttpURLConnection urlConnection = null;
         int responseCode = 0;
         String responseBody = "";                   // レスポンスを 文字列で返す際の変数
         byte[] responseBytes = null;                // レスポンスを バイト配列で返す際の保存先
         Map<String, String> responseHeaders = null;
+        CookieManager cookieManager = CookieManager.getInstance();
 
         try {
             URL url = new URL(requestUrl);
@@ -286,6 +296,11 @@ public class HttpRequest {
             String userPassword = (mUserPassword != null ? mUserPassword : url.getUserInfo());  // ユーザ/パスワードが未設定の場合は URLからの取得も試みる
             if (userPassword != null) {
                 urlConnection.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(userPassword.getBytes(), Base64.NO_WRAP));
+            }
+            if (mEnableCookie) {
+                // CookieManagerから サイトに紐づくcookieを反映する
+                String cookie = cookieManager.getCookie(requestUrl);
+                urlConnection.addRequestProperty("Cookie", cookie);
             }
 
             for(Map.Entry<String, String> header : mExtraHeaders.entrySet()) {
@@ -354,6 +369,16 @@ public class HttpRequest {
             for (Map.Entry<String, List<String>> entry : urlConnection.getHeaderFields().entrySet()) {
                 List<String> values = entry.getValue();
                 responseHeaders.put(entry.getKey(), (values.isEmpty() ? "" : values.get(0)));
+
+                // Cookieの反映も行う
+                if (mEnableCookie && "Set-Cookie".equals(entry.getKey())) {
+                    for (String value : values) {
+                        String[] cookies = value.split("; *");  // Cookie名の前の空白も取り除く
+                        for (String cookie : cookies) {
+                            cookieManager.setCookie(requestUrl, cookie);
+                        }
+                    }
+                }
             }
 
             // レスポンスの入力ストリームを取得
