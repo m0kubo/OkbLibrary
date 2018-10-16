@@ -162,7 +162,7 @@ public class HttpRequest {
         return this;
     }
 
-    public HttpRequest enableCookie(boolean enabled) {
+    public HttpRequest syncCookie(boolean enabled) {
         mEnableCookie = enabled;
         return this;
     }

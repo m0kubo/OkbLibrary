@@ -53,7 +53,7 @@ public class HttpRequestTask extends AsyncTask<File, Void, HttpResponse> {
     }
 
     public HttpRequestTask enableCookie(boolean enabled) {
-        mApiRequest.enableCookie(enabled);
+        mApiRequest.syncCookie(enabled);
         return this;
     }
 

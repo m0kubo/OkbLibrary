@@ -143,26 +143,30 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
     }
 
     private void httpRequest(int method) {
-        String url = UiUtils.getText(this, R.id.et_url);
-        if (url == null || url.isEmpty()) return;
-
-        String key1 = UiUtils.getText(this, R.id.et_key1);
-        String val1 = UiUtils.getText(this, R.id.et_value1);
-        String key2 = UiUtils.getText(this, R.id.et_key2);
-        String val2 = UiUtils.getText(this, R.id.et_value2);
-        File file = null;
-        if (val2 != null && !val2.isEmpty()) {
-            file = new File(val2);
-            if (!file.exists()) file = null;
-        }
-
-        List<HttpParameter> params = null;
-        HttpParameter param = null;
-        if (key1 != null && !key1.isEmpty()) {
-            params = new ArrayList<>();
-            params.add(new HttpParameter(key1, val1));
-            if (key2 != null && !key2.isEmpty() && file != null) params.add(new HttpParameter(key2, file));
-        }
+//        String url = UiUtils.getText(this, R.id.et_url);
+//        if (url == null || url.isEmpty()) return;
+//
+//        String key1 = UiUtils.getText(this, R.id.et_key1);
+//        String val1 = UiUtils.getText(this, R.id.et_value1);
+//        String key2 = UiUtils.getText(this, R.id.et_key2);
+//        String val2 = UiUtils.getText(this, R.id.et_value2);
+//        File file = null;
+//        if (val2 != null && !val2.isEmpty()) {
+//            file = new File(val2);
+//            if (!file.exists()) file = null;
+//        }
+//
+//        List<HttpParameter> params = null;
+//        HttpParameter param = null;
+//        if (key1 != null && !key1.isEmpty()) {
+//            params = new ArrayList<>();
+//            params.add(new HttpParameter(key1, val1));
+//            if (key2 != null && !key2.isEmpty() && file != null) params.add(new HttpParameter(key2, file));
+//        }
+        String url = "https://git.moya.in/img_service/test/test_post_file.php";
+        String filePath = "/sdcard/Documents/BleLogger/180927-152924-191.csv";
+        List<HttpParameter> params = new ArrayList<>();
+        params.add(new HttpParameter("imagefile", new File(filePath)));
 
 
         final DialogFragment progressDialog = new DialogUi.Builder(this, DialogUi.STYLE_PROGRESS_DIALOG).setMessage("message").show();
