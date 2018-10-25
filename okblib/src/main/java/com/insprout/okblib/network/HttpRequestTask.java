@@ -52,8 +52,8 @@ public class HttpRequestTask extends AsyncTask<File, Void, HttpResponse> {
         return this;
     }
 
-    public HttpRequestTask enableCookie(boolean enabled) {
-        mApiRequest.syncCookie(enabled);
+    public HttpRequestTask enableCookie(String url) {
+        mApiRequest.syncCookie(url);
         return this;
     }
 

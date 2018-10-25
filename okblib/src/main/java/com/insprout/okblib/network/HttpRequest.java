@@ -89,7 +89,7 @@ public class HttpRequest {
     private String mUserPassword = null;
     private int mTimeoutMilliSec = -1;
     private boolean mIgnoreCertificateSsl = false;              // 自己署名証明書（オレオレ証明書）サイト接続フラグ
-    private boolean mEnableCookie = false;
+    private String mCookieUrl = null;
 
 
     public HttpRequest(int method, String url) {
@@ -162,8 +162,8 @@ public class HttpRequest {
         return this;
     }
 
-    public HttpRequest syncCookie(boolean enabled) {
-        mEnableCookie = enabled;
+    public HttpRequest syncCookie(String url) {
+        mCookieUrl = url;
         return this;
     }
 
@@ -297,9 +297,9 @@ public class HttpRequest {
             if (userPassword != null) {
                 urlConnection.setRequestProperty("Authorization", "Basic " + Base64.encodeToString(userPassword.getBytes(), Base64.NO_WRAP));
             }
-            if (mEnableCookie) {
+            if (mCookieUrl != null) {
                 // CookieManagerから サイトに紐づくcookieを反映する
-                String cookie = cookieManager.getCookie(requestUrl);
+                String cookie = cookieManager.getCookie(mCookieUrl);
                 urlConnection.addRequestProperty("Cookie", cookie);
             }
 
@@ -371,11 +371,11 @@ public class HttpRequest {
                 responseHeaders.put(entry.getKey(), (values.isEmpty() ? "" : values.get(0)));
 
                 // Cookieの反映も行う
-                if (mEnableCookie && "Set-Cookie".equals(entry.getKey())) {
+                if (mCookieUrl != null && "Set-Cookie".equals(entry.getKey())) {
                     for (String value : values) {
                         String[] cookies = value.split("; *");  // Cookie名の前の空白も取り除く
                         for (String cookie : cookies) {
-                            cookieManager.setCookie(requestUrl, cookie);
+                            cookieManager.setCookie(mCookieUrl, cookie);
                         }
                     }
                 }
