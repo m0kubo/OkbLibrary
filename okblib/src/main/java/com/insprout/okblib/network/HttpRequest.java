@@ -247,12 +247,16 @@ public class HttpRequest {
         HttpResponse response = executeRequest(mRequestUrl, binaryData, responseFile);
 
         // status 307 Temporary Redirectに対応
-        // 302 / 303は HttpURLConnectionで対応されている
-        if (response.getHttpStatus() == 307 || response.getHttpStatus() == 308) {
-            String redirectUrl = response.getResponseHeader(RESPONSE_HEADER_LOCATION);
-            if (redirectUrl != null && !redirectUrl.isEmpty()) {
-                response = executeRequest(redirectUrl, binaryData, responseFile);
-            }
+        switch (response.getHttpStatus()) {
+            case 302:
+            case 303:
+            case 307:
+            case 308:
+                String redirectUrl = response.getResponseHeader(RESPONSE_HEADER_LOCATION);
+                if (redirectUrl != null && !redirectUrl.isEmpty()) {
+                    response = executeRequest(redirectUrl, binaryData, responseFile);
+                }
+                break;
         }
         return response;
     }

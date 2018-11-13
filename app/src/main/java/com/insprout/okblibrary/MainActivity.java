@@ -27,7 +27,9 @@ import com.insprout.okblib.util.UiUtils;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends Activity implements DialogUi.DialogEventListener {
     private final static int RC_DLG_BUTTON3 = 103;
@@ -38,11 +40,21 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
     private final static int RC_DLG_LIST_MULTI_CHOICE = 402;
     private final static int RC_DLG_PROGRESS = 0;
 
+    //private final static String URL_DEFAULT = "https://api.insprout.tk/v1/stores";
+    private final static String URL_DEFAULT = "https://git.moya.in/img_service/test/test2.php";
+    //private final static String URL_DEFAULT = "https://git.moya.in/img_service/test/test_post_file.php";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        initView();
+    }
+
+    private void initView() {
+        UiUtils.setText(this, R.id.et_url, URL_DEFAULT);
     }
 
     public void onClick(View view) {
@@ -143,30 +155,34 @@ public class MainActivity extends Activity implements DialogUi.DialogEventListen
     }
 
     private void httpRequest(int method) {
-//        String url = UiUtils.getText(this, R.id.et_url);
-//        if (url == null || url.isEmpty()) return;
-//
-//        String key1 = UiUtils.getText(this, R.id.et_key1);
-//        String val1 = UiUtils.getText(this, R.id.et_value1);
-//        String key2 = UiUtils.getText(this, R.id.et_key2);
-//        String val2 = UiUtils.getText(this, R.id.et_value2);
-//        File file = null;
-//        if (val2 != null && !val2.isEmpty()) {
-//            file = new File(val2);
-//            if (!file.exists()) file = null;
-//        }
-//
-//        List<HttpParameter> params = null;
-//        HttpParameter param = null;
-//        if (key1 != null && !key1.isEmpty()) {
-//            params = new ArrayList<>();
-//            params.add(new HttpParameter(key1, val1));
-//            if (key2 != null && !key2.isEmpty() && file != null) params.add(new HttpParameter(key2, file));
-//        }
-        String url = "https://git.moya.in/img_service/test/test_post_file.php";
-        String filePath = "/sdcard/Documents/BleLogger/180927-152924-191.csv";
-        List<HttpParameter> params = new ArrayList<>();
-        params.add(new HttpParameter("imagefile", new File(filePath)));
+        String url = UiUtils.getText(this, R.id.et_url);
+        if (url == null || url.isEmpty()) return;
+
+        String key1 = UiUtils.getText(this, R.id.et_key1);
+        String val1 = UiUtils.getText(this, R.id.et_value1);
+        String key2 = UiUtils.getText(this, R.id.et_key2);
+        String val2 = UiUtils.getText(this, R.id.et_value2);
+        File file = null;
+        if (val2 != null && !val2.isEmpty()) {
+            file = new File(val2);
+            if (!file.exists()) file = null;
+        }
+
+        List<HttpParameter> params = null;
+        HttpParameter param = null;
+        if (key1 != null && !key1.isEmpty()) {
+            params = new ArrayList<>();
+            params.add(new HttpParameter(key1, val1));
+            if (key2 != null && !key2.isEmpty() && file != null) params.add(new HttpParameter(key2, file));
+        }
+        ///////////////////
+//        String url = "https://git.moya.in/img_service/test/test_post_file.php";
+//        String url = "https://api.insprout.tk/v1/stores";
+//        Map<String, String> extraHeaders = new HashMap<>();
+//        extraHeaders.put("Api-Key", "dev_FfwO3XGlRqwbndWE6PvD");
+//        String filePath = "/sdcard/Documents/BleLogger/180927-152924-191.csv";
+//        List<HttpParameter> params = new ArrayList<>();
+//        params.add(new HttpParameter("imagefile", new File(filePath)));
 
 
         final DialogFragment progressDialog = new DialogUi.Builder(this, DialogUi.STYLE_PROGRESS_DIALOG).setMessage("message").show();
