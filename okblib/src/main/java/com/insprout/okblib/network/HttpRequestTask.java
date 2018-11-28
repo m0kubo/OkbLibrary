@@ -65,7 +65,7 @@ public class HttpRequestTask extends AsyncTask<File, Void, HttpResponse> {
 
     @Override
     protected HttpResponse doInBackground(File... params) {
-        return mApiRequest.execute(params);
+        return mApiRequest.execute(params.length >= 1 ? params[0] : null);
     }
 
     @Override

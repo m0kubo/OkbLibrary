@@ -231,20 +231,13 @@ public class HttpRequest {
         // AndroidHttpClient通信版との互換性のため、メソッドはのこしておく
     }
 
-    public  HttpResponse execute(File... output) {
+    public  HttpResponse execute(File responseFile) {
         if (mRequestUrl == null || mRequestUrl.isEmpty()) {
             // リクエストURLが未指定の場合は 400 Bad Requestを返しておく
-            return new HttpResponse(400, null, null, null);
+            return new HttpResponse(400, null, null);
         }
 
-        boolean binaryData = false;
-        File responseFile = null;
-        if (output.length >= 1) {
-            // 出力先ファイルが指定されていれば バイナリーデータとみなす
-            binaryData = true;
-            responseFile = output[0];    // 出力先がnullの場合もある。(nullならファイルでなく メモリー中のバイト列データとして返す)
-        }
-        HttpResponse response = executeRequest(mRequestUrl, binaryData, responseFile);
+        HttpResponse response = executeRequest(mRequestUrl, responseFile);
 
         // status 307 Temporary Redirectに対応
         switch (response.getHttpStatus()) {
@@ -254,7 +247,7 @@ public class HttpRequest {
             case 308:
                 String redirectUrl = response.getResponseHeader(RESPONSE_HEADER_LOCATION);
                 if (redirectUrl != null && !redirectUrl.isEmpty()) {
-                    response = executeRequest(redirectUrl, binaryData, responseFile);
+                    response = executeRequest(redirectUrl, responseFile);
                 }
                 break;
         }
@@ -262,10 +255,9 @@ public class HttpRequest {
     }
 
     @SuppressLint("ObsoleteSdkInt")
-    private HttpResponse executeRequest(String requestUrl, boolean binaryData, File responseFile) {
+    private HttpResponse executeRequest(String requestUrl, File responseFile) {
         HttpURLConnection urlConnection = null;
         int responseCode = 0;
-        String responseBody = "";                   // レスポンスを 文字列で返す際の変数
         byte[] responseBytes = null;                // レスポンスを バイト配列で返す際の保存先
         Map<String, String> responseHeaders = null;
         CookieManager cookieManager = CookieManager.getInstance();
@@ -388,10 +380,7 @@ public class HttpRequest {
             // レスポンスの入力ストリームを取得
             try (InputStream responseStream = (isErrorStatus(responseCode) ? urlConnection.getErrorStream() : urlConnection.getInputStream())) {
                 // 指定によって、responseの出力形式を切り替える
-                if (!binaryData) {
-                    // responseBodyとして 返す（文字列）
-                    responseBody = toString(responseStream);
-                } else if (responseFile != null) {
+                if (responseFile != null) {
                     // 出力先に Fileが指定されていた場合は、そこに書き出す
                     toFile(responseFile, responseStream);
                 } else {
@@ -423,28 +412,9 @@ public class HttpRequest {
             }
         }
 
-        return new HttpResponse(responseCode, responseBody, responseBytes, responseHeaders);
+        return new HttpResponse(responseCode, responseBytes, responseHeaders);
     }
 
-    private String toString(InputStream is) throws InterruptedException, IOException {
-        char[] buffer = new char[ BUFF_SIZE ];
-        StringBuilder sb = new StringBuilder();
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, ENCODING), BUFF_SIZE)) {
-            int count = 0;
-            int size;
-            while (0 <= (size = reader.read(buffer))) {
-                sb.append(buffer, 0, size);
-                // interruptのチェック用処理
-                if (++count >= COUNT_CHECK_INTERRUPT) {
-                    // 割り込みを受け付けるように sleep()を呼んでおく
-                    Thread.sleep(0, 1);
-                    count = 0;
-                }
-            }
-        }
-        return sb.toString();
-    }
 
     private byte[] toBytes(InputStream is) throws InterruptedException, IOException {
         byte[] buffer = new byte[ BUFF_SIZE ];
@@ -474,7 +444,6 @@ public class HttpRequest {
 
         try (DataInputStream inResStream = new DataInputStream(is);
             FileOutputStream outResStream = new FileOutputStream(file)) {
-
             int count = 0;
             int size;
             while((size = inResStream.read(buffer)) != -1) {

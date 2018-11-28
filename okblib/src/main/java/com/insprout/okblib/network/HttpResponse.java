@@ -1,5 +1,6 @@
 package com.insprout.okblib.network;
 
+import java.io.UnsupportedEncodingException;
 import java.util.Map;
 
 /**
@@ -9,19 +10,26 @@ import java.util.Map;
 
 public class HttpResponse {
     private int mHttpStatus;
-    private String mResponseBody;
     private byte[] mResponseBytes;
     private Map<String, String> mResponseHeaders;
 
-    public HttpResponse(int httpStatus, String responseBody, byte[] responseBytes, Map<String, String> responseHeaders) {
+    public HttpResponse(int httpStatus, byte[] responseBytes, Map<String, String> responseHeaders) {
         mHttpStatus = httpStatus;
-        mResponseBody = responseBody;
         mResponseBytes = responseBytes;
         mResponseHeaders = responseHeaders;
     }
 
     public String getResponseBody() {
-        return mResponseBody;
+        return getResponseBody("UTF-8");
+    }
+
+    public String getResponseBody(String charset) {
+        if (mResponseBytes == null) return null;
+        try {
+            return new String(mResponseBytes, charset);
+        } catch (UnsupportedEncodingException e) {
+            return null;
+        }
     }
 
     public byte[] getResponseBytes() {
